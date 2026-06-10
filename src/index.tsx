@@ -30,115 +30,136 @@ interface BadgeCriterion {
   metric?: string;
 }
 
-// 0. Helper function to sync a single student's GitHub stats historically
+// 0. Helper function to sync a single student's GitHub stats historically using GraphQL API
 async function syncStudentStats(student: { id: string; github_username: string }) {
   if (!supabase) return 0;
 
-  const statsByDate: Record<string, { commits: number; pull_requests: number; issues: number; stars_received: number }> = {};
+  const query = `
+    query($username: String!) {
+      user(login: $username) {
+        contributionsCollection {
+          totalCommitContributions
+          totalPullRequestContributions
+          totalIssueContributions
+          contributionCalendar {
+            totalContributions
+            weeks {
+              contributionDays {
+                date
+                contributionCount
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
 
   try {
-    const headers: HeadersInit = { "Accept": "application/vnd.github.v3+json" };
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
     if (GITHUB_PAT) {
       headers["Authorization"] = `Bearer ${GITHUB_PAT}`;
     }
 
-    // Fetch up to 3 pages (300 events) for rich historical data
-    for (let page = 1; page <= 3; page++) {
-      const response = await fetch(`https://api.github.com/users/${student.github_username}/events?per_page=100&page=${page}`, { headers });
-      if (!response.ok) break;
-      const events = await response.json();
-      if (!Array.isArray(events) || events.length === 0) break;
+    const response = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query,
+        variables: { username: student.github_username },
+      }),
+    });
 
-      events.forEach((event: any) => {
-        const eventDate = event.created_at ? event.created_at.split("T")[0] : "";
-        if (eventDate) {
-          if (!statsByDate[eventDate]) {
-            statsByDate[eventDate] = { commits: 0, pull_requests: 0, issues: 0, stars_received: 0 };
-          }
-          if (event.type === "PushEvent") {
-            statsByDate[eventDate].commits += event.payload?.commits?.length || 1;
-          } else if (event.type === "PullRequestEvent" && event.payload?.action === "opened") {
-            statsByDate[eventDate].pull_requests += 1;
-          } else if (event.type === "IssuesEvent" && event.payload?.action === "opened") {
-            statsByDate[eventDate].issues += 1;
-          } else if (event.type === "WatchEvent" && event.payload?.action === "started") {
-            statsByDate[eventDate].stars_received += 1;
+    if (response.ok) {
+      const result = await response.json();
+      const userObj = result.data?.user;
+      if (userObj) {
+        const collection = userObj.contributionsCollection;
+        const calendar = collection.contributionCalendar;
+
+        const weeks = calendar.weeks || [];
+        for (const week of weeks) {
+          const days = week.contributionDays || [];
+          for (const day of days) {
+            const dateStr = day.date;
+            const count = day.contributionCount || 0;
+
+            // Map the daily contribution count as commits in stats (so colors and counts match)
+            await supabase.from("github_stats").upsert({
+              student_id: student.id,
+              fecha: dateStr,
+              stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 },
+            }, { onConflict: "student_id,fecha" });
           }
         }
-      });
+
+        // Calculate score from exact GraphQL aggregates
+        const commits = collection.totalCommitContributions || 0;
+        const prs = collection.totalPullRequestContributions || 0;
+        const issues = collection.totalIssueContributions || 0;
+
+        const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
+
+        await supabase.from("students").update({ total_score: newScore }).eq("id", student.id);
+
+        // Evaluate badges
+        const totalCommits = commits;
+        const { data: dbBadges } = await supabase.from("badges").select("id, criterio_desbloqueo");
+        for (const badge of dbBadges || []) {
+          const criterion = (badge.criterio_desbloqueo as unknown as BadgeCriterion) || {};
+          if (criterion.type === "first_commit") {
+            if (totalCommits > 0) {
+              try {
+                await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
+              } catch (e) {}
+            }
+          } else if (criterion.type === "streak") {
+            const targetDays = criterion.target_days || 3;
+            const metric = criterion.metric || "commits";
+
+            const { data: history } = await supabase.from("github_stats").select("fecha, stats").eq("student_id", student.id).order("fecha", { ascending: true });
+            if (history) {
+              let consecutiveDays = 0;
+              let maxConsecutive = 0;
+              let lastDate: Date | null = null;
+
+              for (const row of history) {
+                const val = row.stats?.[metric] || 0;
+                if (val > 0) {
+                  const currentDate = new Date(row.fecha);
+                  if (lastDate === null) {
+                    consecutiveDays = 1;
+                  } else {
+                    const diffDays = Math.ceil(Math.abs(currentDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDays === 1) consecutiveDays++;
+                    else if (diffDays > 1) consecutiveDays = 1;
+                  }
+                  lastDate = currentDate;
+                  if (consecutiveDays > maxConsecutive) maxConsecutive = consecutiveDays;
+                }
+              }
+              if (maxConsecutive >= targetDays) {
+                try {
+                  await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
+                } catch (e) {}
+              }
+            }
+          }
+        }
+
+        return newScore;
+      }
+    } else {
+      console.error("GraphQL request failed:", response.status, await response.text());
     }
   } catch (err) {
-    console.error(`Error querying GitHub API for ${student.github_username}:`, err);
+    console.error("Error calling GitHub GraphQL API:", err);
   }
 
-  // Upsert stats for each date
-  for (const [dateStr, stats] of Object.entries(statsByDate)) {
-    await supabase.from("github_stats").upsert({
-      student_id: student.id,
-      fecha: dateStr,
-      stats: stats,
-    }, { onConflict: "student_id,fecha" });
-  }
-
-  // Recalculate score
-  const { data: allStats } = await supabase.from("github_stats").select("stats").eq("student_id", student.id);
-  let newScore = 0;
-  let totalCommits = 0;
-
-  allStats?.forEach((row) => {
-    const s = row.stats || {};
-    const c = s.commits || 0;
-    totalCommits += c;
-    newScore += c * POINTS_PER_COMMIT + (s.pull_requests || 0) * POINTS_PER_PR + (s.issues || 0) * POINTS_PER_ISSUE + (s.stars_received || 0) * POINTS_PER_STAR;
-  });
-
-  await supabase.from("students").update({ total_score: newScore }).eq("id", student.id);
-
-  // Evaluate badges
-  const { data: dbBadges } = await supabase.from("badges").select("id, criterio_desbloqueo");
-  for (const badge of dbBadges || []) {
-    const criterion = (badge.criterio_desbloqueo as unknown as BadgeCriterion) || {};
-    if (criterion.type === "first_commit") {
-      if (totalCommits > 0) {
-        try {
-          await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
-        } catch (e) {}
-      }
-    } else if (criterion.type === "streak") {
-      const targetDays = criterion.target_days || 3;
-      const metric = criterion.metric || "commits";
-
-      const { data: history } = await supabase.from("github_stats").select("fecha, stats").eq("student_id", student.id).order("fecha", { ascending: true });
-      if (history) {
-        let consecutiveDays = 0;
-        let maxConsecutive = 0;
-        let lastDate: Date | null = null;
-
-        for (const row of history) {
-          const val = row.stats?.[metric] || 0;
-          if (val > 0) {
-            const currentDate = new Date(row.fecha);
-            if (lastDate === null) {
-              consecutiveDays = 1;
-            } else {
-              const diffDays = Math.ceil(Math.abs(currentDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-              if (diffDays === 1) consecutiveDays++;
-              else if (diffDays > 1) consecutiveDays = 1;
-            }
-            lastDate = currentDate;
-            if (consecutiveDays > maxConsecutive) maxConsecutive = consecutiveDays;
-          }
-        }
-        if (maxConsecutive >= targetDays) {
-          try {
-            await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
-          } catch (e) {}
-        }
-      }
-    }
-  }
-
-  return newScore;
+  return 0;
 }
 
 // 1. Mock Data Generator for Sandbox / Fallbacks
