@@ -10,7 +10,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const GITHUB_PAT = process.env.GITHUB_PAT || '';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 const POINTS_PER_COMMIT = 10;
 const POINTS_PER_PR = 20;
@@ -49,7 +51,7 @@ app.get('/', async (c) => {
   let studentBadgesList: StudentBadge[] = [];
 
   // Try to load real data from Supabase if connected
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  if (supabase) {
     try {
       const { data: students } = await supabase.from('students').select('*').limit(2);
       const { data: badges } = await supabase.from('badges').select('*');
@@ -253,7 +255,7 @@ app.get('/', async (c) => {
 
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
 app.post('/api/sync', async (c) => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!supabase) {
     return c.json({ error: 'Supabase credentials are not configured in environment.' }, 500);
   }
 
