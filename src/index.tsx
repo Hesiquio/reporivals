@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { handle } from 'hono/vercel';
 import { createClient } from '@supabase/supabase-js';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
 import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
 import 'hono/jsx/jsx-runtime';
@@ -51,6 +52,24 @@ app.get('/', async (c) => {
   let studentDataB: StudentWithStats;
   let badgesList: Badge[] = [];
   let studentBadgesList: StudentBadge[] = [];
+
+  // Auth state
+  let currentStudent: any = null;
+  const accessToken = getCookie(c, 'sb-access-token');
+
+  if (supabase && accessToken) {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+      if (user && !userError) {
+        const { data: student } = await supabase.from('students').select('*').eq('id', user.id).single();
+        if (student) {
+          currentStudent = student;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to get user from token:', e);
+    }
+  }
 
   // Try to load real data from Supabase if connected
   if (supabase) {
@@ -131,6 +150,21 @@ app.get('/', async (c) => {
     ];
   }
 
+  // If there's a logged-in student, let's load their real stats/badges for custom display
+  let mainStudentName = studentDataA.student.nombre;
+  let mainBadgesList = badgesList;
+  let mainStudentBadgesList = studentBadgesList;
+
+  if (currentStudent && supabase) {
+    try {
+      const { data: sBadges } = await supabase.from('student_badges').select('*').eq('student_id', currentStudent.id);
+      if (sBadges) {
+        mainStudentBadgesList = sBadges;
+        mainStudentName = currentStudent.nombre;
+      }
+    } catch(e){}
+  }
+
   return c.html(
     <html>
       <head>
@@ -156,9 +190,33 @@ app.get('/', async (c) => {
               </p>
             </div>
           </div>
-          <span className="text-xs bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full font-mono">
-            Hono JSX Server Engine Active
-          </span>
+          <div className="flex items-center gap-4">
+            {currentStudent ? (
+              <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
+                {currentStudent.avatar_url ? (
+                  <img src={currentStudent.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentStudent.nombre} />
+                ) : (
+                  <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
+                    {currentStudent.nombre.charAt(0)}
+                  </div>
+                )}
+                <div className="text-left hidden sm:block">
+                  <p className="text-xs font-semibold text-white leading-tight">{currentStudent.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentStudent.github_username}</p>
+                </div>
+                <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                  Salir
+                </a>
+              </div>
+            ) : (
+              <a href="/auth/login" className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-lg font-bold transition-all shadow-md shadow-emerald-500/10 font-medium">
+                Iniciar con GitHub
+              </a>
+            )}
+            <span className="text-xs bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full font-mono hidden md:inline-block">
+              Hono JSX Engine
+            </span>
+          </div>
         </header>
 
         <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
@@ -196,13 +254,13 @@ app.get('/', async (c) => {
           {/* Badges Section */}
           <section className="space-y-4">
             <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de Carlos Mendoza</h3>
+              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de {mainStudentName}</h3>
               <p className="text-xs text-slate-400">Insignias obtenidas e hitos restantes por desbloquear</p>
             </div>
             <BadgeShowcase
-              allBadges={badgesList}
-              studentBadges={studentBadgesList}
-              studentName={studentDataA.student.nombre}
+              allBadges={mainBadgesList}
+              studentBadges={mainStudentBadgesList}
+              studentName={mainStudentName}
             />
           </section>
         </main>
@@ -213,6 +271,78 @@ app.get('/', async (c) => {
       </body>
     </html>
   );
+});
+
+// Auth endpoints
+app.get('/auth/login', async (c) => {
+  if (!supabase) {
+    return c.text('Supabase is not configured', 500);
+  }
+  const origin = new URL(c.req.url).origin;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'github',
+    options: {
+      redirectTo: `${origin}/auth/callback`,
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error || !data?.url) {
+    return c.text('Error starting login flow: ' + (error?.message || 'No URL returned'), 500);
+  }
+
+  return c.redirect(data.url);
+});
+
+app.get('/auth/callback', async (c) => {
+  if (!supabase) {
+    return c.text('Supabase is not configured', 500);
+  }
+
+  const code = c.req.query('code');
+  const error = c.req.query('error');
+  const error_description = c.req.query('error_description');
+
+  if (error) {
+    return c.text(`Authentication error: ${error_description || error}`, 400);
+  }
+
+  if (!code) {
+    return c.text('Authorization code not provided', 400);
+  }
+
+  const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+  if (sessionError || !data.session) {
+    return c.text('Failed to exchange code for session: ' + (sessionError?.message || 'No session'), 400);
+  }
+
+  // Set cookies
+  const accessToken = data.session.access_token;
+  const refreshToken = data.session.refresh_token;
+
+  setCookie(c, 'sb-access-token', accessToken, {
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    maxAge: 60 * 60 * 24 * 7,
+    sameSite: 'Lax',
+  });
+  
+  setCookie(c, 'sb-refresh-token', refreshToken, {
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    maxAge: 60 * 60 * 24 * 7,
+    sameSite: 'Lax',
+  });
+
+  return c.redirect('/');
+});
+
+app.get('/auth/logout', async (c) => {
+  deleteCookie(c, 'sb-access-token', { path: '/' });
+  deleteCookie(c, 'sb-refresh-token', { path: '/' });
+  return c.redirect('/');
 });
 
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
