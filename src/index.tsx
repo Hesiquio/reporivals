@@ -664,7 +664,7 @@ app.get('/auth/callback', async (c) => {
   setCookie(c, 'sb-access-token', accessToken, {
     path: '/',
     secure: isSecure,
-    httpOnly: true,
+    httpOnly: false,
     maxAge: 60 * 60 * 24 * 7,
     sameSite: 'Lax',
   });
@@ -672,7 +672,7 @@ app.get('/auth/callback', async (c) => {
   setCookie(c, 'sb-refresh-token', refreshToken, {
     path: '/',
     secure: isSecure,
-    httpOnly: true,
+    httpOnly: false,
     maxAge: 60 * 60 * 24 * 7,
     sameSite: 'Lax',
   });
