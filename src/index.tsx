@@ -410,13 +410,15 @@ app.get('/auth/callback', async (c) => {
     return c.text('Failed to exchange code for session: ' + (sessionError?.message || 'No session'), 400);
   }
 
-  // Set cookies
   const accessToken = data.session.access_token;
   const refreshToken = data.session.refresh_token;
 
+  // Set cookies (secure only in production / non-localhost environments)
+  const isSecure = !c.req.url.includes('localhost');
+
   setCookie(c, 'sb-access-token', accessToken, {
     path: '/',
-    secure: true,
+    secure: isSecure,
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 7,
     sameSite: 'Lax',
@@ -424,7 +426,7 @@ app.get('/auth/callback', async (c) => {
   
   setCookie(c, 'sb-refresh-token', refreshToken, {
     path: '/',
-    secure: true,
+    secure: isSecure,
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 7,
     sameSite: 'Lax',
