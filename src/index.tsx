@@ -354,9 +354,9 @@ if (typeof Bun !== 'undefined') {
   });
 }
 
-// Export for Vercel Serverless (Node.js Runtime)
+// Export for Vercel Serverless (Edge Runtime)
 export const config = {
-  runtime: 'nodejs',
+  runtime: 'edge',
 };
 
 export default handle(app);
