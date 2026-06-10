@@ -1,6 +1,6 @@
 # Supabase config
 
-project_id = "" # Will be linked dynamically or set in GitHub Secrets
+project_id = "ftzcemmzxiqfsflcbdzr"
 
 [api]
 enabled = true
