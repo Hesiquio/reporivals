@@ -3,6 +3,7 @@ import { handle } from 'hono/vercel';
 import { createClient } from '@supabase/supabase-js';
 import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
 import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
+import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
 
