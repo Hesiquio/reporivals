@@ -343,11 +343,19 @@ app.post('/api/sync', async (c) => {
   }
 });
 
-// Run server using Bun
-const port = 3000;
-console.log(`Hono server started on port ${port}`);
+// Serve locally using Bun if run directly (development)
+if (typeof Bun !== 'undefined') {
+  const port = 3000;
+  console.log(`Hono server started locally on port ${port}`);
+  Bun.serve({
+    port,
+    fetch: app.fetch,
+  });
+}
 
-export default {
-  port,
-  fetch: app.fetch,
+// Export for Vercel Serverless (Edge Runtime)
+export const config = {
+  runtime: 'edge',
 };
+
+export default app;
