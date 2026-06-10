@@ -30,9 +30,20 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
           </h3>
           <p className="text-xs text-slate-400 mt-1">Tabla de posiciones en tiempo real según su actividad en GitHub</p>
         </div>
-        <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md">
-          {students.length} Registrados
-        </span>
+        {isAdmin ? (
+          <div className="flex items-center gap-3">
+            <a href="/admin/sync-all" className="text-xs font-bold text-emerald-400 hover:text-emerald-350 bg-emerald-950/20 border border-emerald-900/30 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-950/10">
+              <span>🔄</span> Sincronizar Todo el Ranking
+            </a>
+            <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
+              {students.length} Registrados
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md">
+            {students.length} Registrados
+          </span>
+        )}
       </div>
 
       {students.length === 0 ? (
@@ -138,14 +149,23 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
                     </td>
                     {isAdmin && (
                       <td className="py-4 px-6 text-center">
-                        <a
-                          href={`/admin/delete-student/${std.id}`}
-                          onclick="return confirm('¿Seguro que deseas eliminar a este alumno del ranking?')"
-                          className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded transition-colors inline-block"
-                          title="Eliminar Alumno"
-                        >
-                          🗑️
-                        </a>
+                        <div className="flex items-center justify-center gap-2">
+                          <a
+                            href={`/admin/sync-student/${std.id}`}
+                            className="text-xs bg-emerald-950/45 hover:bg-emerald-900/50 border border-emerald-900/35 text-emerald-400 p-1.5 rounded transition-colors inline-block"
+                            title="Sincronizar Alumno"
+                          >
+                            🔄
+                          </a>
+                          <a
+                            href={`/admin/delete-student/${std.id}`}
+                            onclick="return confirm('¿Seguro que deseas eliminar a este alumno del ranking?')"
+                            className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded transition-colors inline-block"
+                            title="Eliminar Alumno"
+                          >
+                            🗑️
+                          </a>
+                        </div>
                       </td>
                     )}
                   </tr>

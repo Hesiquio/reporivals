@@ -777,6 +777,49 @@ app.get('/admin/delete-student/:id', async (c) => {
   return c.redirect('/');
 });
 
+app.get('/admin/sync-student/:id', async (c) => {
+  const admin = await getAdminUser(c);
+  if (!admin) {
+    return c.text('Unauthorized: Access denied', 403);
+  }
+
+  const id = c.req.param('id');
+  if (supabase && id) {
+    try {
+      const { data: student } = await supabase.from('students').select('*').eq('id', id).single();
+      if (student) {
+        await syncStudentStats(student);
+      }
+    } catch (err: any) {
+      return c.text('Error syncing student: ' + err.message, 500);
+    }
+  }
+
+  return c.redirect('/');
+});
+
+app.get('/admin/sync-all', async (c) => {
+  const admin = await getAdminUser(c);
+  if (!admin) {
+    return c.text('Unauthorized: Access denied', 403);
+  }
+
+  if (supabase) {
+    try {
+      const { data: students } = await supabase.from('students').select('*');
+      if (students) {
+        for (const student of students) {
+          await syncStudentStats(student);
+        }
+      }
+    } catch (err: any) {
+      return c.text('Error syncing all students: ' + err.message, 500);
+    }
+  }
+
+  return c.redirect('/');
+});
+
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
 app.post('/api/sync', async (c) => {
   if (!supabase) {
