@@ -192,56 +192,16 @@ app.get('/', async (c) => {
           </section>
 
           {/* Badges Section */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1">
-                <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de Carlos Mendoza</h3>
-                <p className="text-xs text-slate-400">Insignias obtenidas e hitos restantes por desbloquear</p>
-              </div>
-              <BadgeShowcase
-                allBadges={badgesList}
-                studentBadges={studentBadgesList}
-                studentName={studentDataA.student.nombre}
-              />
+          <section className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de Carlos Mendoza</h3>
+              <p className="text-xs text-slate-400">Insignias obtenidas e hitos restantes por desbloquear</p>
             </div>
-
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1">
-                <h3 className="text-lg font-bold text-white tracking-wide">🎓 Servidor Hono con Bun</h3>
-                <p className="text-xs text-slate-400">Estado de la integración y endpoints</p>
-              </div>
-              <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-900 space-y-4 h-full flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="bg-slate-950 w-8 h-8 rounded-lg flex items-center justify-center text-sm border border-slate-850">🔥</span>
-                    <p className="text-xs text-slate-300">
-                      <strong className="text-white block">Hono JSX Engine</strong>
-                      Todo renderizado desde el servidor sin necesidad de grandes librerías cliente.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="bg-slate-950 w-8 h-8 rounded-lg flex items-center justify-center text-sm border border-slate-850">🥟</span>
-                    <p className="text-xs text-slate-300">
-                      <strong className="text-white block">Bun Runtime</strong>
-                      Estructura súper ligera y veloz, lista para integrarse en tu servidor base.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="bg-slate-950 w-8 h-8 rounded-lg flex items-center justify-center text-sm border border-slate-850">⚙️</span>
-                    <p className="text-xs text-slate-300">
-                      <strong className="text-white block">Sync Endpoint activo</strong>
-                      Llama a <code className="bg-slate-950 text-emerald-400 px-1 py-0.5 rounded text-[10px]">POST /api/sync</code> para ejecutar la sincronización de aportaciones.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-900 pt-4 text-center">
-                  <p className="text-[11px] text-slate-500">
-                    Ejecuta <code className="bg-slate-950 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-850">bun run dev</code> para iniciar localmente.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <BadgeShowcase
+              allBadges={badgesList}
+              studentBadges={studentBadgesList}
+              studentName={studentDataA.student.nombre}
+            />
           </section>
         </main>
 
