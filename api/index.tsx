@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { createClient } from '@supabase/supabase-js';
-import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
-import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
+import { HeatmapComparator, StudentWithStats } from '@/components/HeatmapComparator';
+import { BadgeShowcase, Badge, StudentBadge } from '@/components/BadgeShowcase';
 
 const app = new Hono();
 
