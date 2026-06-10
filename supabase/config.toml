@@ -1,0 +1,9 @@
+# Supabase config
+
+project_id = "" # Will be linked dynamically or set in GitHub Secrets
+
+[api]
+enabled = true
+
+[functions.sync-github-stats]
+verify_jwt = false # Cron jobs calling the edge function do not require JWT validation
