@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { handle } from 'hono/vercel';
 import { createClient } from '@supabase/supabase-js';
 import { HeatmapComparator, StudentWithStats } from '../src/components/HeatmapComparator';
 import { BadgeShowcase, Badge, StudentBadge } from '../src/components/BadgeShowcase';
@@ -358,4 +359,4 @@ export const config = {
   runtime: 'nodejs',
 };
 
-export default app;
+export default handle(app);
