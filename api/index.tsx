@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { createClient } from '@supabase/supabase-js';
-import { HeatmapComparator, StudentWithStats } from '@/components/HeatmapComparator';
-import { BadgeShowcase, Badge, StudentBadge } from '@/components/BadgeShowcase';
+import { HeatmapComparator, StudentWithStats } from '../src/components/HeatmapComparator';
+import { BadgeShowcase, Badge, StudentBadge } from '../src/components/BadgeShowcase';
 
 const app = new Hono();
 
@@ -353,9 +353,9 @@ if (typeof Bun !== 'undefined') {
   });
 }
 
-// Export for Vercel Serverless (Edge Runtime)
+// Export for Vercel Serverless (Node.js Runtime)
 export const config = {
-  runtime: 'edge',
+  runtime: 'nodejs',
 };
 
 export default app;
