@@ -1,0 +1,139 @@
+import { FC } from 'hono/jsx';
+
+export interface LeaderboardStudent {
+  id: string;
+  nombre: string;
+  github_username: string;
+  avatar_url?: string;
+  total_score: number;
+  badges?: Array<{
+    id: string;
+    nombre: string;
+    icon_url: string;
+  }>;
+}
+
+interface LeaderboardProps {
+  students: LeaderboardStudent[];
+  currentStudentId?: string;
+}
+
+export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId }) => {
+  return (
+    <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="px-6 py-5 border-b border-slate-850 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+            <span>🏆</span> Ranking de Alumnos
+          </h3>
+          <p className="text-xs text-slate-400 mt-1">Tabla de posiciones en tiempo real según su actividad en GitHub</p>
+        </div>
+        <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md">
+          {students.length} Registrados
+        </span>
+      </div>
+
+      {students.length === 0 ? (
+        <div className="p-12 text-center text-slate-500 space-y-2">
+          <p className="text-2xl">👋</p>
+          <p className="text-sm font-medium">No hay alumnos registrados aún.</p>
+          <p className="text-xs text-slate-600">¡Sé el primero en iniciar sesión para aparecer en el ranking!</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-850/50 bg-slate-950/20 text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                <th className="py-4 px-6 text-center w-16">Puesto</th>
+                <th className="py-4 px-6">Alumno</th>
+                <th className="py-4 px-6 hidden md:table-cell">Insignias</th>
+                <th className="py-4 px-6 text-right w-32">Puntos</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-850/40">
+              {students.map((std, index) => {
+                const rank = index + 1;
+                const isCurrent = std.id === currentStudentId;
+
+                // Rank designators
+                let rankBadge = <span className="text-slate-400 font-mono text-sm">{rank}</span>;
+                let rowHighlight = "hover:bg-slate-900/20 transition-colors";
+                if (rank === 1) {
+                  rankBadge = <span className="text-xl">🥇</span>;
+                } else if (rank === 2) {
+                  rankBadge = <span className="text-xl">🥈</span>;
+                } else if (rank === 3) {
+                  rankBadge = <span className="text-xl">🥉</span>;
+                }
+
+                if (isCurrent) {
+                  rowHighlight = "bg-emerald-950/10 hover:bg-emerald-950/20 border-l-2 border-emerald-500 transition-colors";
+                }
+
+                return (
+                  <tr key={std.id} className={rowHighlight}>
+                    <td className="py-4 px-6 text-center font-bold">
+                      {rankBadge}
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        {std.avatar_url ? (
+                          <img
+                            src={std.avatar_url}
+                            className="w-10 h-10 rounded-full border border-slate-800 shadow-sm"
+                            alt={std.nombre}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center font-black text-sm text-white">
+                            {std.nombre.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white">{std.nombre}</span>
+                            {isCurrent && (
+                              <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
+                                Tú
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-400 font-mono">@{std.github_username}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 hidden md:table-cell">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {std.badges && std.badges.length > 0 ? (
+                          std.badges.map((badge) => (
+                            <span
+                              key={badge.id}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-950 border border-slate-800 text-sm cursor-help relative group"
+                              title={badge.nombre}
+                            >
+                              {badge.icon_url}
+                              {/* Custom micro-tooltip on hover */}
+                              <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap bg-slate-950 border border-slate-850 px-2 py-1 text-[10px] rounded text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity font-sans shadow-xl">
+                                {badge.nombre}
+                              </span>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-650 font-mono italic">Sin insignias</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className="text-sm font-extrabold text-emerald-400 font-mono">
+                        {std.total_score.toLocaleString()} pts
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
 import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
+import { Leaderboard, LeaderboardStudent } from './components/Leaderboard';
 import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
@@ -61,13 +62,51 @@ app.get('/', async (c) => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
       if (user && !userError) {
-        const { data: student } = await supabase.from('students').select('*').eq('id', user.id).single();
+        const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
         if (student) {
           currentStudent = student;
         }
       }
     } catch (e) {
       console.error('Failed to get user from token:', e);
+    }
+  }
+
+  // Load real students list for Leaderboard
+  let leaderboardStudents: LeaderboardStudent[] = [];
+  if (supabase) {
+    try {
+      const { data: studentsData } = await supabase.from('students').select('*').order('total_score', { ascending: false });
+      const { data: studentBadgesData } = await supabase.from('student_badges').select('student_id, badges(id, nombre, icon_url)');
+      
+      const badgesByStudent: Record<string, any[]> = {};
+      studentBadgesData?.forEach((row: any) => {
+        const sId = row.student_id;
+        const b = row.badges;
+        if (sId && b) {
+          if (!badgesByStudent[sId]) {
+            badgesByStudent[sId] = [];
+          }
+          if (!badgesByStudent[sId].find(x => x.id === b.id)) {
+            badgesByStudent[sId].push({
+              id: b.id,
+              nombre: b.nombre,
+              icon_url: b.icon_url,
+            });
+          }
+        }
+      });
+
+      leaderboardStudents = (studentsData || []).map((student: any) => ({
+        id: student.id,
+        nombre: student.nombre,
+        github_username: student.github_username,
+        avatar_url: student.avatar_url,
+        total_score: student.total_score,
+        badges: badgesByStudent[student.id] || [],
+      }));
+    } catch (e) {
+      console.error("Failed to load leaderboard data:", e);
     }
   }
 
@@ -142,7 +181,7 @@ app.get('/', async (c) => {
     badgesList = [
       { id: "b-1", nombre: "Hola Mundo", descripcion: "Primera aportación en el ranking.", icon_url: "🚀", criterio_desbloqueo: "primer_commit" },
       { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
-      { id: "b-3", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
+      { id: "b-3", font_name: "Constancia Brutal", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
     ];
     studentBadgesList = [
       { id: "sb-1", student_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
@@ -242,11 +281,16 @@ app.get('/', async (c) => {
             </div>
           </section>
 
+          {/* Real Live Leaderboard */}
+          <section className="space-y-4">
+            <Leaderboard students={leaderboardStudents} currentStudentId={currentStudent?.id} />
+          </section>
+
           {/* Heatmap Section */}
           <section className="space-y-4">
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-bold text-white tracking-wide">🔥 Duelo Amistoso de Actividad</h3>
-              <p className="text-xs text-slate-400">Compara el historial de aportaciones entre Carlos y Sofía</p>
+              <p className="text-xs text-slate-400">Compara el historial de aportaciones entre Carlos y Sofía (Demostración)</p>
             </div>
             <HeatmapComparator studentA={studentDataA} studentB={studentDataB} daysToDisplay={120} />
           </section>
@@ -254,7 +298,7 @@ app.get('/', async (c) => {
           {/* Badges Section */}
           <section className="space-y-4">
             <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de {mainStudentName}</h3>
+              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de {mainStudentName} (Demostración)</h3>
               <p className="text-xs text-slate-400">Insignias obtenidas e hitos restantes por desbloquear</p>
             </div>
             <BadgeShowcase
@@ -475,10 +519,10 @@ app.post('/api/sync', async (c) => {
   }
 });
 
-// Serve locally using Bun if run directly (development)
+// Serve locally using Bun if run directly (development / Render)
 if (typeof Bun !== 'undefined') {
-  const port = 3000;
-  console.log(`Hono server started locally on port ${port}`);
+  const port = parseInt(process.env.PORT || '3000', 10);
+  console.log(`Hono server started on port ${port}`);
   Bun.serve({
     port,
     fetch: app.fetch,
