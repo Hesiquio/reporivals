@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { FC } from 'hono/jsx';
 
 export interface ContributionDay {
   fecha: string; // YYYY-MM-DD
@@ -24,35 +24,26 @@ export interface StudentWithStats {
 interface HeatmapComparatorProps {
   studentA: StudentWithStats;
   studentB: StudentWithStats;
-  daysToDisplay?: number; // e.g., 90 days, 180 days, 365 days
+  daysToDisplay?: number;
 }
 
-export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
+export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
   studentA,
   studentB,
-  daysToDisplay = 120, // Default to ~4 months for clean layout
+  daysToDisplay = 120,
 }) => {
-  const [hoveredDay, setHoveredDay] = useState<{
-    studentName: string;
-    day: ContributionDay;
-  } | null>(null);
+  // Generate date list
+  const dates: string[] = [];
+  const today = new Date();
+  for (let i = daysToDisplay - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    dates.push(`${yyyy}-${mm}-${dd}`);
+  }
 
-  // Generate list of date strings for the last N days
-  const dateRange = useMemo(() => {
-    const dates: string[] = [];
-    const today = new Date();
-    for (let i = daysToDisplay - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      dates.push(`${yyyy}-${mm}-${dd}`);
-    }
-    return dates;
-  }, [daysToDisplay]);
-
-  // Helper to convert contributions to intensity level (0 to 4)
   const getIntensityClass = (total: number) => {
     if (total === 0) return 'bg-slate-800 border-slate-900';
     if (total <= 2) return 'bg-emerald-900/60 border-emerald-950/20 text-emerald-100';
@@ -61,19 +52,15 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
     return 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)] border-emerald-300 text-white';
   };
 
-  // Maps stats array to a quick lookup map
-  const createStatsMap = (statsList: ContributionDay[]) => {
+  const getStatsMap = (statsList: ContributionDay[]) => {
     const map = new Map<string, ContributionDay>();
-    statsList.forEach((stat) => {
-      map.set(stat.fecha, stat);
-    });
+    statsList.forEach((stat) => map.set(stat.fecha, stat));
     return map;
   };
 
-  const statsMapA = useMemo(() => createStatsMap(studentA.stats), [studentA.stats]);
-  const statsMapB = useMemo(() => createStatsMap(studentB.stats), [studentB.stats]);
+  const statsMapA = getStatsMap(studentA.stats);
+  const statsMapB = getStatsMap(studentB.stats);
 
-  // Aggregate stats for comparison cards
   const getAggregatedStats = (studentStats: ContributionDay[]) => {
     let totalCommits = 0;
     let totalPRs = 0;
@@ -93,24 +80,18 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
     const totalContributions = totalCommits + totalPRs + totalIssues;
     return {
       totalContributions,
-      totalCommits,
-      totalPRs,
-      totalIssues,
       maxContributionsSingleDay,
       averagePerDay: (totalContributions / Math.max(studentStats.length, 1)).toFixed(2),
     };
   };
 
-  const aggA = useMemo(() => getAggregatedStats(studentA.stats), [studentA.stats]);
-  const aggB = useMemo(() => getAggregatedStats(studentB.stats), [studentB.stats]);
+  const aggA = getAggregatedStats(studentA.stats);
+  const aggB = getAggregatedStats(studentB.stats);
 
-  const renderHeatmapGrid = (
-    studentName: string,
-    statsMap: Map<string, ContributionDay>
-  ) => {
+  const renderHeatmapGrid = (statsMap: Map<string, ContributionDay>) => {
     return (
       <div className="grid grid-flow-col grid-rows-7 gap-1 p-4 bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-xl overflow-x-auto">
-        {dateRange.map((dateStr) => {
+        {dates.map((dateStr) => {
           const stats = statsMap.get(dateStr) || {
             fecha: dateStr,
             commits: 0,
@@ -120,14 +101,18 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
           };
           const totalContributions = stats.commits + stats.pull_requests + stats.issues;
           const intensity = getIntensityClass(totalContributions);
+          const tooltipText = `${dateStr}: ${stats.commits} commits, ${stats.pull_requests} PRs, ${stats.issues} issues`;
 
           return (
             <div
               key={dateStr}
-              className={`w-3.5 h-3.5 rounded-sm border transition-all duration-200 hover:scale-125 cursor-pointer ${intensity}`}
-              onMouseEnter={() => setHoveredDay({ studentName, day: stats })}
-              onMouseLeave={() => setHoveredDay(null)}
-            />
+              className={`w-3.5 h-3.5 rounded-sm border transition-all duration-205 cursor-pointer relative group/cell ${intensity}`}
+            >
+              {/* Native CSS hover tooltip */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/cell:block bg-slate-950 text-slate-100 text-[10px] py-1 px-2 rounded border border-slate-800 whitespace-nowrap z-50">
+                {tooltipText}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -185,7 +170,6 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
             <span className="text-slate-600 font-bold">vs</span>
             <span className="text-2xl font-black text-teal-400">{aggB.totalContributions}</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Commits, Pull Requests & Issues</div>
         </div>
 
         <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-900 flex flex-col items-center justify-center text-center">
@@ -195,7 +179,6 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
             <span className="text-slate-600 font-bold">vs</span>
             <span className="text-2xl font-black text-teal-400">{aggB.averagePerDay}</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Aportaciones por día analizado</div>
         </div>
 
         <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-900 flex flex-col items-center justify-center text-center">
@@ -205,7 +188,6 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
             <span className="text-slate-600 font-bold">vs</span>
             <span className="text-2xl font-black text-teal-400">{aggB.maxContributionsSingleDay}</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-1">Record personal de aportaciones</div>
         </div>
       </div>
 
@@ -216,7 +198,7 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {studentA.student.nombre}</span>
             <span className="text-xs text-slate-500">Últimos {daysToDisplay} días</span>
           </div>
-          {renderHeatmapGrid(studentA.student.nombre, statsMapA)}
+          {renderHeatmapGrid(statsMapA)}
         </div>
 
         <div>
@@ -224,7 +206,7 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {studentB.student.nombre}</span>
             <span className="text-xs text-slate-500">Últimos {daysToDisplay} días</span>
           </div>
-          {renderHeatmapGrid(studentB.student.nombre, statsMapB)}
+          {renderHeatmapGrid(statsMapB)}
         </div>
       </div>
 
@@ -239,18 +221,7 @@ export const HeatmapComparator: React.FC<HeatmapComparatorProps> = ({
           <div className="w-3.5 h-3.5 rounded-sm bg-emerald-400 border border-emerald-300" />
           <span>Más</span>
         </div>
-
-        {/* Dynamic Tooltip Info panel */}
-        <div className="h-6 flex items-center">
-          {hoveredDay ? (
-            <span className="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-1 rounded-md text-xs font-mono transition-opacity duration-150">
-              <strong className="text-emerald-400">{hoveredDay.studentName}</strong> el {hoveredDay.day.fecha}:{' '}
-              {hoveredDay.day.commits} commits, {hoveredDay.day.pull_requests} PRs, {hoveredDay.day.issues} issues
-            </span>
-          ) : (
-            <span className="text-slate-600 italic">Pasa el cursor sobre un cuadro para ver detalles del día</span>
-          )}
-        </div>
+        <span className="text-slate-650 italic text-[10px]">Pasa el cursor sobre un cuadro para ver detalles del día</span>
       </div>
     </div>
   );

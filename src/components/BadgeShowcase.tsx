@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { FC } from 'hono/jsx';
 
 export interface Badge {
   id: string;
@@ -12,7 +12,7 @@ export interface StudentBadge {
   id: string;
   student_id: string;
   badge_id: string;
-  otorgado_en: string; // ISO string or formatted timestamp
+  otorgado_en: string;
 }
 
 interface BadgeShowcaseProps {
@@ -21,21 +21,15 @@ interface BadgeShowcaseProps {
   studentName: string;
 }
 
-export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
+export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
   allBadges = [],
   studentBadges = [],
   studentName,
 }) => {
-  const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
-
-  // Set of unlocked badge IDs for fast lookup
-  const unlockedBadgeMap = React.useMemo(() => {
-    const map = new Map<string, StudentBadge>();
-    studentBadges.forEach((sb) => {
-      map.set(sb.badge_id, sb);
-    });
-    return map;
-  }, [studentBadges]);
+  const unlockedBadgeMap = new Map<string, StudentBadge>();
+  studentBadges.forEach((sb) => {
+    unlockedBadgeMap.set(sb.badge_id, sb);
+  });
 
   const earnedCount = studentBadges.length;
   const totalCount = allBadges.length;
@@ -63,7 +57,6 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
             </span>
           </div>
           <div className="relative w-12 h-12 flex items-center justify-center">
-            {/* SVG circular progress indicator */}
             <svg className="w-full h-full transform -rotate-90">
               <circle
                 cx="24"
@@ -82,8 +75,8 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
                 stroke="currentColor"
                 className="text-emerald-400 transition-all duration-500"
                 fill="transparent"
-                strokeDasharray={2 * Math.PI * 20}
-                strokeDashoffset={2 * Math.PI * 20 * (1 - completionPercentage / 100)}
+                strokeDasharray={`${2 * Math.PI * 20}`}
+                strokeDashoffset={`${2 * Math.PI * 20 * (1 - completionPercentage / 100)}`}
               />
             </svg>
             <span className="absolute text-[10px] font-mono font-extrabold text-white">
@@ -98,11 +91,41 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
         {allBadges.map((badge) => {
           const unlockRecord = unlockedBadgeMap.get(badge.id);
           const isUnlocked = !!unlockRecord;
+          const statusText = isUnlocked ? 'Desbloqueado' : 'Bloqueado';
+          const unlockDate = isUnlocked && unlockRecord 
+            ? new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) 
+            : '';
+
+          // JSON string payload to populate modal details dynamically in the client DOM
+          const detailsPayload = JSON.stringify({
+            nombre: badge.nombre,
+            descripcion: badge.descripcion,
+            icon: badge.icon_url,
+            criterio: badge.criterio_desbloqueo,
+            status: isUnlocked ? `Desbloqueado el ${new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}` : '🔒 Aún no obtenido',
+            unlocked: isUnlocked
+          });
 
           return (
             <div
               key={badge.id}
-              onClick={() => setSelectedBadge(badge)}
+              onclick={`
+                const payload = ${detailsPayload.replace(/"/g, '&quot;')};
+                document.getElementById('m-title').innerText = payload.nombre;
+                document.getElementById('m-desc').innerText = payload.descripcion;
+                document.getElementById('m-icon').innerText = payload.icon;
+                document.getElementById('m-criterio').innerText = payload.criterio;
+                document.getElementById('m-status').innerText = payload.status;
+                const mBack = document.getElementById('m-back');
+                if (payload.unlocked) {
+                  mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-gradient-to-tr from-emerald-500 to-teal-500';
+                  document.getElementById('m-status-box').className = 'text-xs text-emerald-400 mt-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-semibold';
+                } else {
+                  mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-slate-800';
+                  document.getElementById('m-status-box').className = 'text-xs text-slate-500 mt-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-900';
+                }
+                document.getElementById('badge-modal').showModal();
+              `}
               className={`relative flex flex-col items-center p-4 rounded-xl border transition-all duration-300 cursor-pointer select-none group ${
                 isUnlocked
                   ? 'bg-slate-900/60 border-emerald-500/20 hover:border-emerald-400 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)]'
@@ -111,19 +134,15 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
             >
               {/* Badge Icon Shield */}
               <div className="relative w-16 h-16 mb-3 flex items-center justify-center">
-                {/* Visual backdrop for active vs locked badges */}
                 <div
                   className={`absolute inset-0 rounded-full blur-md opacity-40 group-hover:opacity-75 transition-opacity duration-300 ${
                     isUnlocked ? 'bg-gradient-to-tr from-emerald-500 to-teal-500' : 'bg-slate-800'
                   }`}
                 />
                 
-                {/* Actual Icon wrapper */}
                 <div
                   className={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl border bg-slate-900 overflow-hidden ${
-                    isUnlocked
-                      ? 'border-emerald-500/30 text-emerald-400'
-                      : 'border-slate-800 text-slate-600 grayscale'
+                    isUnlocked ? 'border-emerald-500/30 text-emerald-400' : 'border-slate-800 text-slate-650 grayscale'
                   }`}
                 >
                   {badge.icon_url.startsWith('http') || badge.icon_url.startsWith('/') ? (
@@ -133,12 +152,10 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
                       className={`w-full h-full object-cover ${!isUnlocked && 'grayscale'}`}
                     />
                   ) : (
-                    // Fallback to text/emoji representation if icon_url is a symbol
                     <span>{badge.icon_url || '🏅'}</span>
                   )}
                 </div>
 
-                {/* Locked Padlock Overlap */}
                 {!isUnlocked && (
                   <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shadow-lg text-[10px] text-slate-500">
                     🔒
@@ -154,16 +171,12 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
               </span>
               
               <span className="text-[10px] text-slate-500 mt-1 text-center font-mono">
-                {isUnlocked ? 'Desbloqueado' : 'Bloqueado'}
+                {statusText}
               </span>
 
-              {/* Unlock Date Tag */}
-              {isUnlocked && unlockRecord && (
+              {isUnlocked && (
                 <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full mt-2 font-mono">
-                  {new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', {
-                    day: 'numeric',
-                    month: 'short',
-                  })}
+                  {unlockDate}
                 </span>
               )}
             </div>
@@ -171,81 +184,51 @@ export const BadgeShowcase: React.FC<BadgeShowcaseProps> = ({
         })}
       </div>
 
-      {/* Badge Detail Modal/Modal Sheet */}
-      {selectedBadge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative flex flex-col items-center text-center animate-in fade-in zoom-in duration-200">
-            <button
-              onClick={() => setSelectedBadge(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold w-8 h-8 rounded-full hover:bg-slate-800 flex items-center justify-center transition-colors"
-            >
-              ✕
-            </button>
+      {/* Standalone HTML5 Dialog Modal Sheet */}
+      <dialog
+        id="badge-modal"
+        className="bg-transparent backdrop:bg-slate-950/80 backdrop:backdrop-blur-sm p-4 w-full max-w-md focus:outline-none"
+      >
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl relative flex flex-col items-center text-center">
+          <button
+            onclick="document.getElementById('badge-modal').close()"
+            className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold w-8 h-8 rounded-full hover:bg-slate-800 flex items-center justify-center transition-colors"
+          >
+            ✕
+          </button>
 
-            {/* Badge Render in Modal */}
-            <div className="relative w-24 h-24 mb-4 mt-2">
-              <div
-                className={`absolute inset-0 rounded-full blur-xl opacity-50 ${
-                  unlockedBadgeMap.has(selectedBadge.id)
-                    ? 'bg-gradient-to-tr from-emerald-500 to-teal-500'
-                    : 'bg-slate-800'
-                }`}
-              />
-              <div
-                className={`relative w-24 h-24 rounded-full flex items-center justify-center text-4xl border bg-slate-950 ${
-                  unlockedBadgeMap.has(selectedBadge.id)
-                    ? 'border-emerald-400 text-emerald-400'
-                    : 'border-slate-800 text-slate-600 grayscale'
-                }`}
-              >
-                {selectedBadge.icon_url.startsWith('http') || selectedBadge.icon_url.startsWith('/') ? (
-                  <img
-                    src={selectedBadge.icon_url}
-                    alt={selectedBadge.nombre}
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <span>{selectedBadge.icon_url || '🏅'}</span>
-                )}
-              </div>
+          {/* Icon frame in dialog */}
+          <div className="relative w-24 h-24 mb-4 mt-2">
+            <div id="m-back" className="absolute inset-0 rounded-full blur-xl opacity-50 bg-slate-800" />
+            <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-4xl border border-slate-800 bg-slate-950 text-slate-300">
+              <span id="m-icon">🏅</span>
             </div>
-
-            <h3 className="text-xl font-black text-white">{selectedBadge.nombre}</h3>
-            <p className="text-sm text-slate-300 mt-2 max-w-xs">{selectedBadge.descripcion}</p>
-
-            <div className="w-full border-t border-slate-800 my-4 pt-4 flex flex-col items-center gap-2">
-              <div className="text-xs text-slate-400">
-                <span className="font-semibold text-slate-500 uppercase tracking-wide block mb-1">Criterio de Desbloqueo</span>
-                <code className="bg-slate-950 px-3 py-1 rounded text-emerald-400 font-mono text-[11px] border border-slate-950">
-                  {selectedBadge.criterio_desbloqueo}
-                </code>
-              </div>
-
-              {unlockedBadgeMap.has(selectedBadge.id) ? (
-                <div className="text-xs text-emerald-400 mt-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-semibold">
-                  ✓ Desbloqueado el{' '}
-                  {new Date(unlockedBadgeMap.get(selectedBadge.id)!.otorgado_en).toLocaleDateString('es-ES', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </div>
-              ) : (
-                <div className="text-xs text-slate-500 mt-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-900">
-                  🔒 Aún no obtenido
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => setSelectedBadge(null)}
-              className="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold py-2 px-4 rounded-xl transition-all"
-            >
-              Cerrar
-            </button>
           </div>
+
+          <h3 id="m-title" className="text-xl font-black text-white">Título de Insignia</h3>
+          <p id="m-desc" className="text-sm text-slate-300 mt-2 max-w-xs">Descripción detallada.</p>
+
+          <div className="w-full border-t border-slate-800 my-4 pt-4 flex flex-col items-center gap-2">
+            <div className="text-xs text-slate-400">
+              <span className="font-semibold text-slate-500 uppercase tracking-wide block mb-1">Criterio de Desbloqueo</span>
+              <code id="m-criterio" className="bg-slate-950 px-3 py-1 rounded text-emerald-400 font-mono text-[11px] border border-slate-950">
+                criterio
+              </code>
+            </div>
+
+            <div id="m-status-box" className="text-xs text-slate-500 mt-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-900">
+              <span id="m-status">Estado</span>
+            </div>
+          </div>
+
+          <button
+            onclick="document.getElementById('badge-modal').close()"
+            className="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold py-2 px-4 rounded-xl transition-all"
+          >
+            Cerrar
+          </button>
         </div>
-      )}
+      </dialog>
     </div>
   );
 };
