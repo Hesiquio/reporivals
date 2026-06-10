@@ -5,6 +5,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
 import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
 import { Leaderboard, LeaderboardStudent } from './components/Leaderboard';
+import { StudentHeatmap } from './components/StudentHeatmap';
 import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
@@ -49,11 +50,6 @@ const generateMockStats = (seed: number) => {
 
 // 2. GET Route: Renders the Dashboard
 app.get('/', async (c) => {
-  let studentDataA: StudentWithStats;
-  let studentDataB: StudentWithStats;
-  let badgesList: Badge[] = [];
-  let studentBadgesList: StudentBadge[] = [];
-
   // Auth state
   let currentStudent: any = null;
   const accessToken = getCookie(c, 'sb-access-token');
@@ -110,98 +106,33 @@ app.get('/', async (c) => {
     }
   }
 
-  // Try to load real data from Supabase if connected
-  if (supabase) {
-    try {
-      const { data: students } = await supabase.from('students').select('*').limit(2);
-      const { data: badges } = await supabase.from('badges').select('*');
-
-      if (students && students.length >= 2) {
-        const { data: statsA } = await supabase.from('github_stats').select('fecha, stats').eq('student_id', students[0].id);
-        const { data: statsB } = await supabase.from('github_stats').select('fecha, stats').eq('student_id', students[1].id);
-        const { data: sBadges } = await supabase.from('student_badges').select('*').eq('student_id', students[0].id);
-
-        studentDataA = {
-          student: students[0],
-          stats: (statsA || []).map((row) => ({
-            fecha: row.fecha,
-            commits: row.stats?.commits || 0,
-            pull_requests: row.stats?.pull_requests || 0,
-            issues: row.stats?.issues || 0,
-            stars_received: row.stats?.stars_received || 0,
-          })),
-        };
-
-        studentDataB = {
-          student: students[1],
-          stats: (statsB || []).map((row) => ({
-            fecha: row.fecha,
-            commits: row.stats?.commits || 0,
-            pull_requests: row.stats?.pull_requests || 0,
-            issues: row.stats?.issues || 0,
-            stars_received: row.stats?.stars_received || 0,
-          })),
-        };
-
-        badgesList = badges || [];
-        studentBadgesList = sBadges || [];
-      } else {
-        throw new Error('Fallback to sandbox');
-      }
-    } catch (e) {
-      // Fallback sandbox variables if DB is not configured yet
-      studentDataA = {
-        student: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
-        stats: generateMockStats(4),
-      };
-      studentDataB = {
-        student: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
-        stats: generateMockStats(9),
-      };
-      badgesList = [
-        { id: "b-1", nombre: "Hola Mundo", descripcion: "Primera aportación en el ranking.", icon_url: "🚀", criterio_desbloqueo: "primer_commit" },
-        { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
-        { id: "b-3", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
-      ];
-      studentBadgesList = [
-        { id: "sb-1", student_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
-        { id: "sb-2", student_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
-      ];
-    }
-  } else {
-    // Sandbox defaults
-    studentDataA = {
-      student: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
-      stats: generateMockStats(4),
-    };
-    studentDataB = {
-      student: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
-      stats: generateMockStats(9),
-    };
-    badgesList = [
-      { id: "b-1", nombre: "Hola Mundo", descripcion: "Primera aportación en el ranking.", icon_url: "🚀", criterio_desbloqueo: "primer_commit" },
-      { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
-      { id: "b-3", font_name: "Constancia Brutal", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
-    ];
-    studentBadgesList = [
-      { id: "sb-1", student_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
-      { id: "sb-2", student_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
-    ];
-  }
-
-  // If there's a logged-in student, let's load their real stats/badges for custom display
-  let mainStudentName = studentDataA.student.nombre;
-  let mainBadgesList = badgesList;
-  let mainStudentBadgesList = studentBadgesList;
-
+  // Load logged-in student's yearly stats (365 days)
+  let currentStudentStats: any[] = [];
   if (currentStudent && supabase) {
     try {
-      const { data: sBadges } = await supabase.from('student_badges').select('*').eq('student_id', currentStudent.id);
-      if (sBadges) {
-        mainStudentBadgesList = sBadges;
-        mainStudentName = currentStudent.nombre;
+      const oneYearAgo = new Date();
+      oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+      const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+      
+      const { data: statsData } = await supabase
+        .from('github_stats')
+        .select('fecha, stats')
+        .eq('student_id', currentStudent.id)
+        .gte('fecha', oneYearAgoStr)
+        .order('fecha', { ascending: true });
+
+      if (statsData) {
+        currentStudentStats = statsData.map((row) => ({
+          fecha: row.fecha,
+          commits: row.stats?.commits || 0,
+          pull_requests: row.stats?.pull_requests || 0,
+          issues: row.stats?.issues || 0,
+          stars_received: row.stats?.stars_received || 0,
+        }));
       }
-    } catch(e){}
+    } catch (e) {
+      console.error("Failed to load student stats:", e);
+    }
   }
 
   return c.html(
@@ -230,6 +161,9 @@ app.get('/', async (c) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <a href="/sobre-nosotros" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Sobre Nosotros
+            </a>
             {currentStudent ? (
               <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
                 {currentStudent.avatar_url ? (
@@ -286,25 +220,141 @@ app.get('/', async (c) => {
             <Leaderboard students={leaderboardStudents} currentStudentId={currentStudent?.id} />
           </section>
 
-          {/* Heatmap Section */}
-          <section className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-bold text-white tracking-wide">🔥 Duelo Amistoso de Actividad</h3>
-              <p className="text-xs text-slate-400">Compara el historial de aportaciones entre Carlos y Sofía (Demostración)</p>
+          {/* Yearly Heatmap if logged in */}
+          {currentStudent && (
+            <section className="space-y-4">
+              <StudentHeatmap
+                studentName={currentStudent.nombre}
+                githubUsername={currentStudent.github_username}
+                stats={currentStudentStats}
+                daysToDisplay={365}
+              />
+            </section>
+          )}
+        </main>
+
+        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
+          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        </footer>
+      </body>
+    </html>
+  );
+});
+
+// GET Route: Renders the About/Demo Section
+app.get('/sobre-nosotros', async (c) => {
+  // Auth state
+  let currentStudent: any = null;
+  const accessToken = getCookie(c, 'sb-access-token');
+
+  if (supabase && accessToken) {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+      if (user && !userError) {
+        const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
+        if (student) {
+          currentStudent = student;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Load static demo datasets
+  const studentDataA = {
+    student: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
+    stats: generateMockStats(4),
+  };
+  const studentDataB = {
+    student: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
+    stats: generateMockStats(9),
+  };
+  const badgesList = [
+    { id: "b-1", nombre: "Hola Mundo", descripcion: "Primera aportación en el ranking.", icon_url: "🚀", criterio_desbloqueo: "primer_commit" },
+    { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
+    { id: "b-3", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
+  ];
+  const studentBadgesList = [
+    { id: "sb-1", student_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
+    { id: "sb-2", student_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
+  ];
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sobre Repo Rivals - Demostración de Funciones</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>{`
+          dialog::backdrop {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(4px);
+          }
+        `}</style>
+      </head>
+      <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <a href="/" className="hover:text-emerald-400 transition-colors">
+                <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
+              </a>
+              <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
+                Ingeniería en Sistemas
+              </p>
             </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Volver al Ranking
+            </a>
+            {currentStudent ? (
+              <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
+                {currentStudent.avatar_url ? (
+                  <img src={currentStudent.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentStudent.nombre} />
+                ) : (
+                  <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
+                    {currentStudent.nombre.charAt(0)}
+                  </div>
+                )}
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-semibold text-white leading-tight">{currentStudent.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentStudent.github_username}</p>
+                </div>
+                <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                  Salir
+                </a>
+              </div>
+            ) : (
+              <a href="/auth/login" className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-lg font-bold transition-all shadow-md shadow-emerald-500/10 font-medium">
+                Iniciar con GitHub
+              </a>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-10">
+          <section className="text-center space-y-3 py-6 bg-slate-900/20 border border-slate-900/80 rounded-2xl p-6">
+            <h2 className="text-3xl font-black text-white tracking-wide">Sobre Repo Rivals</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto text-sm leading-relaxed">
+              Esta sección demuestra cómo se comparan las contribuciones de GitHub y cómo funciona el gabinete interactivo de insignias del sistema.
+            </p>
+          </section>
+
+          {/* Static Heatmap Demo */}
+          <section className="space-y-4">
+            <h3 className="text-lg font-bold text-white tracking-wide">🔥 Comparador de Actividad (Demostración)</h3>
             <HeatmapComparator studentA={studentDataA} studentB={studentDataB} daysToDisplay={120} />
           </section>
 
-          {/* Badges Section */}
+          {/* Static Badges Demo */}
           <section className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Insignias de {mainStudentName} (Demostración)</h3>
-              <p className="text-xs text-slate-400">Insignias obtenidas e hitos restantes por desbloquear</p>
-            </div>
+            <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Vitrina de Insignias Interactiva (Demostración)</h3>
             <BadgeShowcase
-              allBadges={mainBadgesList}
-              studentBadges={mainStudentBadgesList}
-              studentName={mainStudentName}
+              allBadges={badgesList}
+              studentBadges={studentBadgesList}
+              studentName={studentDataA.student.nombre}
             />
           </section>
         </main>
