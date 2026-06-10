@@ -8,7 +8,7 @@ export interface ContributionDay {
   stars_received: number;
 }
 
-export interface Student {
+export interface Dev {
   id: string;
   nombre: string;
   github_username: string;
@@ -16,20 +16,20 @@ export interface Student {
   total_score: number;
 }
 
-export interface StudentWithStats {
-  student: Student;
+export interface DevWithStats {
+  dev: Dev;
   stats: ContributionDay[];
 }
 
 interface HeatmapComparatorProps {
-  studentA: StudentWithStats;
-  studentB: StudentWithStats;
+  devA: DevWithStats;
+  devB: DevWithStats;
   daysToDisplay?: number;
 }
 
 export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
-  studentA,
-  studentB,
+  devA,
+  devB,
   daysToDisplay = 120,
 }) => {
   // Generate date list
@@ -58,16 +58,16 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
     return map;
   };
 
-  const statsMapA = getStatsMap(studentA.stats);
-  const statsMapB = getStatsMap(studentB.stats);
+  const statsMapA = getStatsMap(devA.stats);
+  const statsMapB = getStatsMap(devB.stats);
 
-  const getAggregatedStats = (studentStats: ContributionDay[]) => {
+  const getAggregatedStats = (devStats: ContributionDay[]) => {
     let totalCommits = 0;
     let totalPRs = 0;
     let totalIssues = 0;
     let maxContributionsSingleDay = 0;
 
-    studentStats.forEach((day) => {
+    devStats.forEach((day) => {
       totalCommits += day.commits;
       totalPRs += day.pull_requests;
       totalIssues += day.issues;
@@ -81,12 +81,12 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
     return {
       totalContributions,
       maxContributionsSingleDay,
-      averagePerDay: (totalContributions / Math.max(studentStats.length, 1)).toFixed(2),
+      averagePerDay: (totalContributions / Math.max(devStats.length, 1)).toFixed(2),
     };
   };
 
-  const aggA = getAggregatedStats(studentA.stats);
-  const aggB = getAggregatedStats(studentB.stats);
+  const aggA = getAggregatedStats(devA.stats);
+  const aggB = getAggregatedStats(devB.stats);
 
   const renderHeatmapGrid = (statsMap: Map<string, ContributionDay>) => {
     return (
@@ -125,15 +125,15 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
       <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-slate-900 pb-6">
         <div className="flex items-center gap-4 w-full md:w-5/12 bg-slate-900/30 p-4 rounded-xl border border-slate-900">
           <img
-            src={studentA.student.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80'}
-            alt={studentA.student.nombre}
+            src={devA.dev.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80'}
+            alt={devA.dev.nombre}
             className="w-14 h-14 rounded-full ring-2 ring-emerald-500/50"
           />
           <div>
-            <h3 className="font-bold text-lg text-emerald-400">{studentA.student.nombre}</h3>
-            <p className="text-sm text-slate-400">@{studentA.student.github_username}</p>
+            <h3 className="font-bold text-lg text-emerald-400">{devA.dev.nombre}</h3>
+            <p className="text-sm text-slate-400">@{devA.dev.github_username}</p>
             <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-mono mt-1 inline-block">
-              Puntaje: {studentA.student.total_score} pts
+              Puntaje: {devA.dev.total_score} pts
             </span>
           </div>
         </div>
@@ -147,15 +147,15 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
 
         <div className="flex items-center gap-4 w-full md:w-5/12 justify-end bg-slate-900/30 p-4 rounded-xl border border-slate-900 text-right">
           <div>
-            <h3 className="font-bold text-lg text-teal-400">{studentB.student.nombre}</h3>
-            <p className="text-sm text-slate-400">@{studentB.student.github_username}</p>
+            <h3 className="font-bold text-lg text-teal-400">{devB.dev.nombre}</h3>
+            <p className="text-sm text-slate-400">@{devB.dev.github_username}</p>
             <span className="text-xs bg-teal-500/10 text-teal-400 px-2 py-0.5 rounded-full font-mono mt-1 inline-block">
-              Puntaje: {studentB.student.total_score} pts
+              Puntaje: {devB.dev.total_score} pts
             </span>
           </div>
           <img
-            src={studentB.student.avatar_url || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&h=150&q=80'}
-            alt={studentB.student.nombre}
+            src={devB.dev.avatar_url || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&h=150&q=80'}
+            alt={devB.dev.nombre}
             className="w-14 h-14 rounded-full ring-2 ring-teal-500/50"
           />
         </div>
@@ -195,7 +195,7 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
       <div className="space-y-6">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {studentA.student.nombre}</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {devA.dev.nombre}</span>
             <span className="text-xs text-slate-500">Últimos {daysToDisplay} días</span>
           </div>
           {renderHeatmapGrid(statsMapA)}
@@ -203,7 +203,7 @@ export const HeatmapComparator: FC<HeatmapComparatorProps> = ({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {studentB.student.nombre}</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Heatmap: {devB.dev.nombre}</span>
             <span className="text-xs text-slate-500">Últimos {daysToDisplay} días</span>
           </div>
           {renderHeatmapGrid(statsMapB)}

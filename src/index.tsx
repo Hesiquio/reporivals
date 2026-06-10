@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { handle } from 'hono/vercel';
 import { createClient } from '@supabase/supabase-js';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { HeatmapComparator, StudentWithStats } from './components/HeatmapComparator';
-import { BadgeShowcase, Badge, StudentBadge } from './components/BadgeShowcase';
-import { Leaderboard, LeaderboardStudent } from './components/Leaderboard';
-import { StudentHeatmap } from './components/StudentHeatmap';
+import { HeatmapComparator, DevWithStats } from './components/HeatmapComparator';
+import { BadgeShowcase, Badge, DevBadge } from './components/BadgeShowcase';
+import { Leaderboard, LeaderboardDev } from './components/Leaderboard';
+import { DevHeatmap } from './components/DevHeatmap';
 import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
@@ -30,8 +30,8 @@ interface BadgeCriterion {
   metric?: string;
 }
 
-// 0. Helper function to sync a single student's GitHub stats historically using GraphQL API
-async function syncStudentStats(student: { id: string; github_username: string }) {
+// 0. Helper function to sync a single dev's GitHub stats historically using GraphQL API
+async function syncDevStats(dev: { id: string; github_username: string }) {
   if (!supabase) return 0;
 
   const query = `
@@ -89,10 +89,10 @@ async function syncStudentStats(student: { id: string; github_username: string }
 
             // Map the daily contribution count as commits in stats (so colors and counts match)
             await supabase.from("github_stats").upsert({
-              student_id: student.id,
+              dev_id: dev.id,
               fecha: dateStr,
               stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 },
-            }, { onConflict: "student_id,fecha" });
+            }, { onConflict: "dev_id,fecha" });
           }
         }
 
@@ -104,7 +104,7 @@ async function syncStudentStats(student: { id: string; github_username: string }
         const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
 
         const totalContributions = calendar.totalContributions || 0;
-        await supabase.from("students").update({ total_score: newScore, total_contributions: totalContributions }).eq("id", student.id);
+        await supabase.from("devs").update({ total_score: newScore, total_contributions: totalContributions }).eq("id", dev.id);
 
         // Evaluate badges
         const totalCommits = commits;
@@ -114,14 +114,14 @@ async function syncStudentStats(student: { id: string; github_username: string }
           if (criterion.type === "first_commit") {
             if (totalCommits > 0) {
               try {
-                await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
+                await supabase.from("dev_badges").insert({ dev_id: dev.id, badge_id: badge.id });
               } catch (e) {}
             }
           } else if (criterion.type === "streak") {
             const targetDays = criterion.target_days || 3;
             const metric = criterion.metric || "commits";
 
-            const { data: history } = await supabase.from("github_stats").select("fecha, stats").eq("student_id", student.id).order("fecha", { ascending: true });
+            const { data: history } = await supabase.from("github_stats").select("fecha, stats").eq("dev_id", dev.id).order("fecha", { ascending: true });
             if (history) {
               let consecutiveDays = 0;
               let maxConsecutive = 0;
@@ -144,7 +144,7 @@ async function syncStudentStats(student: { id: string; github_username: string }
               }
               if (maxConsecutive >= targetDays) {
                 try {
-                  await supabase.from("student_badges").insert({ student_id: student.id, badge_id: badge.id });
+                  await supabase.from("dev_badges").insert({ dev_id: dev.id, badge_id: badge.id });
                 } catch (e) {}
               }
             }
@@ -184,16 +184,16 @@ const generateMockStats = (seed: number) => {
 // 2. GET Route: Renders the Dashboard
 app.get('/', async (c) => {
   // Auth state
-  let currentStudent: any = null;
+  let currentDev: any = null;
   const accessToken = getCookie(c, 'sb-access-token');
 
   if (supabase && accessToken) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
       if (user && !userError) {
-        const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
-        if (student) {
-          currentStudent = student;
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) {
+          currentDev = dev;
         }
       }
     } catch (e) {
@@ -201,23 +201,23 @@ app.get('/', async (c) => {
     }
   }
 
-  // Load real students list for Leaderboard
-  let leaderboardStudents: LeaderboardStudent[] = [];
+  // Load real devs list for Leaderboard
+  let leaderboardDevs: LeaderboardDev[] = [];
   if (supabase) {
     try {
-      const { data: studentsData } = await supabase.from('students').select('*').order('total_score', { ascending: false });
-      const { data: studentBadgesData } = await supabase.from('student_badges').select('student_id, badges(id, nombre, icon_url)');
+      const { data: devsData } = await supabase.from('devs').select('*').order('total_score', { ascending: false });
+      const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
       
-      const badgesByStudent: Record<string, any[]> = {};
-      studentBadgesData?.forEach((row: any) => {
-        const sId = row.student_id;
+      const badgesByDev: Record<string, any[]> = {};
+      devBadgesData?.forEach((row: any) => {
+        const dId = row.dev_id;
         const b = row.badges;
-        if (sId && b) {
-          if (!badgesByStudent[sId]) {
-            badgesByStudent[sId] = [];
+        if (dId && b) {
+          if (!badgesByDev[dId]) {
+            badgesByDev[dId] = [];
           }
-          if (!badgesByStudent[sId].find(x => x.id === b.id)) {
-            badgesByStudent[sId].push({
+          if (!badgesByDev[dId].find(x => x.id === b.id)) {
+            badgesByDev[dId].push({
               id: b.id,
               nombre: b.nombre,
               icon_url: b.icon_url,
@@ -226,23 +226,23 @@ app.get('/', async (c) => {
         }
       });
 
-      leaderboardStudents = (studentsData || []).map((student: any) => ({
-        id: student.id,
-        nombre: student.nombre,
-        github_username: student.github_username,
-        avatar_url: student.avatar_url,
-        total_score: student.total_score,
-        total_contributions: student.total_contributions || 0,
-        badges: badgesByStudent[student.id] || [],
+      leaderboardDevs = (devsData || []).map((dev: any) => ({
+        id: dev.id,
+        nombre: dev.nombre,
+        github_username: dev.github_username,
+        avatar_url: dev.avatar_url,
+        total_score: dev.total_score,
+        total_contributions: dev.total_contributions || 0,
+        badges: badgesByDev[dev.id] || [],
       }));
     } catch (e) {
       console.error("Failed to load leaderboard data:", e);
     }
   }
 
-  // Load logged-in student's yearly stats (365 days)
-  let currentStudentStats: any[] = [];
-  if (currentStudent && supabase) {
+  // Load logged-in dev's yearly stats (365 days)
+  let currentDevStats: any[] = [];
+  if (currentDev && supabase) {
     try {
       const oneYearAgo = new Date();
       oneYearAgo.setDate(oneYearAgo.getDate() - 365);
@@ -251,45 +251,45 @@ app.get('/', async (c) => {
       let { data: statsData } = await supabase
         .from('github_stats')
         .select('fecha, stats')
-        .eq('student_id', currentStudent.id)
+        .eq('dev_id', currentDev.id)
         .gte('fecha', oneYearAgoStr)
         .order('fecha', { ascending: true });
 
       // Automatically run first-time sync in the background if no stats are loaded yet
       if (!statsData || statsData.length === 0) {
-        await syncStudentStats(currentStudent);
+        await syncDevStats(currentDev);
         
         // Refetch stats
         const { data: refetched } = await supabase
           .from('github_stats')
           .select('fecha, stats')
-          .eq('student_id', currentStudent.id)
+          .eq('dev_id', currentDev.id)
           .gte('fecha', oneYearAgoStr)
           .order('fecha', { ascending: true });
         
         statsData = refetched;
 
-        // Refresh student info (since total_score changes)
-        const { data: updatedStudent } = await supabase.from('students').select('*').eq('id', currentStudent.id).single();
-        if (updatedStudent) {
-          currentStudent = updatedStudent;
+        // Refresh dev info (since total_score changes)
+        const { data: updatedDev } = await supabase.from('devs').select('*').eq('id', currentDev.id).single();
+        if (updatedDev) {
+          currentDev = updatedDev;
         }
 
-        // Also reload the leaderboard students list so the user sees their updated rank immediately!
+        // Also reload the leaderboard devs list so the user sees their updated rank immediately!
         try {
-          const { data: studentsData } = await supabase.from('students').select('*').order('total_score', { ascending: false });
-          const { data: studentBadgesData } = await supabase.from('student_badges').select('student_id, badges(id, nombre, icon_url)');
+          const { data: devsData } = await supabase.from('devs').select('*').order('total_score', { ascending: false });
+          const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
           
-          const badgesByStudent: Record<string, any[]> = {};
-          studentBadgesData?.forEach((row: any) => {
-            const sId = row.student_id;
+          const badgesByDev: Record<string, any[]> = {};
+          devBadgesData?.forEach((row: any) => {
+            const dId = row.dev_id;
             const b = row.badges;
-            if (sId && b) {
-              if (!badgesByStudent[sId]) {
-                badgesByStudent[sId] = [];
+            if (dId && b) {
+              if (!badgesByDev[dId]) {
+                badgesByDev[dId] = [];
               }
-              if (!badgesByStudent[sId].find(x => x.id === b.id)) {
-                badgesByStudent[sId].push({
+              if (!badgesByDev[dId].find(x => x.id === b.id)) {
+                badgesByDev[dId].push({
                   id: b.id,
                   nombre: b.nombre,
                   icon_url: b.icon_url,
@@ -298,20 +298,20 @@ app.get('/', async (c) => {
             }
           });
 
-          leaderboardStudents = (studentsData || []).map((student: any) => ({
-            id: student.id,
-            nombre: student.nombre,
-            github_username: student.github_username,
-            avatar_url: student.avatar_url,
-            total_score: student.total_score,
-            total_contributions: student.total_contributions || 0,
-            badges: badgesByStudent[student.id] || [],
+          leaderboardDevs = (devsData || []).map((dev: any) => ({
+            id: dev.id,
+            nombre: dev.nombre,
+            github_username: dev.github_username,
+            avatar_url: dev.avatar_url,
+            total_score: dev.total_score,
+            total_contributions: dev.total_contributions || 0,
+            badges: badgesByDev[dev.id] || [],
           }));
         } catch(err){}
       }
 
       if (statsData) {
-        currentStudentStats = statsData.map((row) => ({
+        currentDevStats = statsData.map((row) => ({
           fecha: row.fecha,
           commits: row.stats?.commits || 0,
           pull_requests: row.stats?.pull_requests || 0,
@@ -320,7 +320,7 @@ app.get('/', async (c) => {
         }));
       }
     } catch (e) {
-      console.error("Failed to load student stats:", e);
+      console.error("Failed to load dev stats:", e);
     }
   }
 
@@ -353,18 +353,18 @@ app.get('/', async (c) => {
             <a href="/sobre-nosotros" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
               Sobre Nosotros
             </a>
-            {currentStudent ? (
+            {currentDev ? (
               <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
-                {currentStudent.avatar_url ? (
-                  <img src={currentStudent.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentStudent.nombre} />
+                {currentDev.avatar_url ? (
+                  <img src={currentDev.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentDev.nombre} />
                 ) : (
                   <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
-                    {currentStudent.nombre.charAt(0)}
+                    {currentDev.nombre.charAt(0)}
                   </div>
                 )}
                 <div className="text-left hidden sm:block">
-                  <p className="text-xs font-semibold text-white leading-tight">{currentStudent.nombre}</p>
-                  <p className="text-[10px] text-emerald-400 font-mono">@{currentStudent.github_username}</p>
+                  <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
                 <a href="/auth/sync-profile" className="text-xs bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-900/30 hover:border-emerald-800/35 text-emerald-400 px-2 py-1 rounded-lg transition-colors font-medium flex items-center gap-1" title="Sincronizar aportaciones de GitHub">
                   <span>🔄</span> Sincronizar
@@ -392,13 +392,13 @@ app.get('/', async (c) => {
                 Plataforma Gamificada de Aprendizaje
               </h2>
               <p className="text-slate-400 text-sm mt-2 leading-relaxed">
-                Compara tu actividad en GitHub con la de tus compañeros de clase. Consigue insignias, supera desafíos en tiempo real y asciende en la tabla de posiciones.
+                Compara tu actividad en GitHub con la de tus compañeros devs. Consigue insignias, supera desafíos en tiempo real y asciende en la tabla de posiciones.
               </p>
             </div>
             <div className="flex gap-3">
               <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center">
                 <span className="block text-2xl font-bold text-white">42</span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Alumnos</span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
               </div>
               <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center">
                 <span className="block text-2xl font-bold text-emerald-400">12.5k</span>
@@ -408,12 +408,12 @@ app.get('/', async (c) => {
           </section>
 
           {/* Admin Panel Form if Admin */}
-          {currentStudent?.is_admin && (
+          {currentDev?.is_admin && (
             <section className="bg-slate-900/35 border border-slate-850 p-6 rounded-2xl space-y-4">
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
-                <span>⚙️</span> Panel de Administración - Pre-registrar Alumno
+                <span>⚙️</span> Panel de Administración - Pre-registrar Dev
               </h3>
-              <form method="POST" action="/admin/add-student" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Nombre Completo</label>
                   <input type="text" name="nombre" required placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
@@ -433,16 +433,16 @@ app.get('/', async (c) => {
 
           {/* Real Live Leaderboard */}
           <section className="space-y-4">
-            <Leaderboard students={leaderboardStudents} currentStudentId={currentStudent?.id} isAdmin={currentStudent?.is_admin || false} />
+            <Leaderboard devs={leaderboardDevs} currentDevId={currentDev?.id} isAdmin={currentDev?.is_admin || false} />
           </section>
 
           {/* Yearly Heatmap if logged in */}
-          {currentStudent && (
+          {currentDev && (
             <section className="space-y-4">
-              <StudentHeatmap
-                studentName={currentStudent.nombre}
-                githubUsername={currentStudent.github_username}
-                stats={currentStudentStats}
+              <DevHeatmap
+                devName={currentDev.nombre}
+                githubUsername={currentDev.github_username}
+                stats={currentDevStats}
                 daysToDisplay={365}
               />
             </section>
@@ -460,28 +460,28 @@ app.get('/', async (c) => {
 // GET Route: Renders the About/Demo Section
 app.get('/sobre-nosotros', async (c) => {
   // Auth state
-  let currentStudent: any = null;
+  let currentDev: any = null;
   const accessToken = getCookie(c, 'sb-access-token');
 
   if (supabase && accessToken) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
       if (user && !userError) {
-        const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
-        if (student) {
-          currentStudent = student;
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) {
+          currentDev = dev;
         }
       }
     } catch (e) {}
   }
 
   // Load static demo datasets
-  const studentDataA = {
-    student: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
+  const devDataA = {
+    dev: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
     stats: generateMockStats(4),
   };
-  const studentDataB = {
-    student: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
+  const devDataB = {
+    dev: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
     stats: generateMockStats(9),
   };
   const badgesList = [
@@ -489,9 +489,9 @@ app.get('/sobre-nosotros', async (c) => {
     { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
     { id: "b-3", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
   ];
-  const studentBadgesList = [
-    { id: "sb-1", student_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
-    { id: "sb-2", student_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
+  const devBadgesList = [
+    { id: "sb-1", dev_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
+    { id: "sb-2", dev_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
   ];
 
   return c.html(
@@ -525,18 +525,18 @@ app.get('/sobre-nosotros', async (c) => {
             <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
               Volver al Ranking
             </a>
-            {currentStudent ? (
+            {currentDev ? (
               <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
-                {currentStudent.avatar_url ? (
-                  <img src={currentStudent.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentStudent.nombre} />
+                {currentDev.avatar_url ? (
+                  <img src={currentDev.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentDev.nombre} />
                 ) : (
                   <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
-                    {currentStudent.nombre.charAt(0)}
+                    {currentDev.nombre.charAt(0)}
                   </div>
                 )}
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-semibold text-white leading-tight">{currentStudent.nombre}</p>
-                  <p className="text-[10px] text-emerald-400 font-mono">@{currentStudent.github_username}</p>
+                  <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
                 <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
                   Salir
@@ -561,7 +561,7 @@ app.get('/sobre-nosotros', async (c) => {
           {/* Static Heatmap Demo */}
           <section className="space-y-4">
             <h3 className="text-lg font-bold text-white tracking-wide">🔥 Comparador de Actividad (Demostración)</h3>
-            <HeatmapComparator studentA={studentDataA} studentB={studentDataB} daysToDisplay={120} />
+            <HeatmapComparator devA={devDataA} devB={devDataB} daysToDisplay={120} />
           </section>
 
           {/* Static Badges Demo */}
@@ -569,8 +569,8 @@ app.get('/sobre-nosotros', async (c) => {
             <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Vitrina de Insignias Interactiva (Demostración)</h3>
             <BadgeShowcase
               allBadges={badgesList}
-              studentBadges={studentBadgesList}
-              studentName={studentDataA.student.nombre}
+              devBadges={devBadgesList}
+              devName={devDataA.dev.nombre}
             />
           </section>
         </main>
@@ -687,16 +687,16 @@ app.get('/auth/logout', async (c) => {
 });
 
 app.get('/auth/sync-profile', async (c) => {
-  let currentStudent: any = null;
+  let currentDev: any = null;
   const accessToken = getCookie(c, 'sb-access-token');
 
   if (supabase && accessToken) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
       if (user && !userError) {
-        const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
-        if (student) {
-          await syncStudentStats(student);
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) {
+          await syncDevStats(dev);
         }
       }
     } catch (e) {
@@ -715,16 +715,16 @@ async function getAdminUser(c: any) {
   try {
     const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
     if (user && !userError) {
-      const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
-      if (student && student.is_admin) {
-        return student;
+      const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+      if (dev && dev.is_admin) {
+        return dev;
       }
     }
   } catch (e) {}
   return null;
 }
 
-app.post('/admin/add-student', async (c) => {
+app.post('/admin/add-dev', async (c) => {
   const admin = await getAdminUser(c);
   if (!admin) {
     return c.text('Unauthorized: Access denied', 403);
@@ -740,26 +740,26 @@ app.post('/admin/add-student', async (c) => {
 
   if (supabase) {
     try {
-      const { data: newStudent, error } = await supabase
-        .from('students')
+      const { data: newDev, error } = await supabase
+        .from('devs')
         .insert({ nombre, github_username })
         .select()
         .single();
       
       if (error) throw error;
 
-      if (newStudent) {
-        await syncStudentStats(newStudent);
+      if (newDev) {
+        await syncDevStats(newDev);
       }
     } catch (err: any) {
-      return c.text('Error adding student: ' + err.message, 500);
+      return c.text('Error adding dev: ' + err.message, 500);
     }
   }
 
   return c.redirect('/');
 });
 
-app.get('/admin/delete-student/:id', async (c) => {
+app.get('/admin/delete-dev/:id', async (c) => {
   const admin = await getAdminUser(c);
   if (!admin) {
     return c.text('Unauthorized: Access denied', 403);
@@ -768,16 +768,16 @@ app.get('/admin/delete-student/:id', async (c) => {
   const id = c.req.param('id');
   if (supabase && id) {
     try {
-      await supabase.from('students').delete().eq('id', id);
+      await supabase.from('devs').delete().eq('id', id);
     } catch (err: any) {
-      return c.text('Error deleting student: ' + err.message, 500);
+      return c.text('Error deleting dev: ' + err.message, 500);
     }
   }
 
   return c.redirect('/');
 });
 
-app.get('/admin/sync-student/:id', async (c) => {
+app.get('/admin/sync-dev/:id', async (c) => {
   const admin = await getAdminUser(c);
   if (!admin) {
     return c.text('Unauthorized: Access denied', 403);
@@ -786,12 +786,12 @@ app.get('/admin/sync-student/:id', async (c) => {
   const id = c.req.param('id');
   if (supabase && id) {
     try {
-      const { data: student } = await supabase.from('students').select('*').eq('id', id).single();
-      if (student) {
-        await syncStudentStats(student);
+      const { data: dev } = await supabase.from('devs').select('*').eq('id', id).single();
+      if (dev) {
+        await syncDevStats(dev);
       }
     } catch (err: any) {
-      return c.text('Error syncing student: ' + err.message, 500);
+      return c.text('Error syncing dev: ' + err.message, 500);
     }
   }
 
@@ -806,14 +806,14 @@ app.get('/admin/sync-all', async (c) => {
 
   if (supabase) {
     try {
-      const { data: students } = await supabase.from('students').select('*');
-      if (students) {
-        for (const student of students) {
-          await syncStudentStats(student);
+      const { data: devs } = await supabase.from('devs').select('*');
+      if (devs) {
+        for (const dev of devs) {
+          await syncDevStats(dev);
         }
       }
     } catch (err: any) {
-      return c.text('Error syncing all students: ' + err.message, 500);
+      return c.text('Error syncing all devs: ' + err.message, 500);
     }
   }
 
@@ -827,16 +827,16 @@ app.post('/api/sync', async (c) => {
   }
 
   try {
-    const { data: students, error: studentsError } = await supabase.from("students").select("*");
-    if (studentsError) throw studentsError;
-    if (!students || students.length === 0) {
-      return c.json({ message: "No students to sync." }, 200);
+    const { data: devs, error: devsError } = await supabase.from("devs").select("*");
+    if (devsError) throw devsError;
+    if (!devs || devs.length === 0) {
+      return c.json({ message: "No devs to sync." }, 200);
     }
 
     const results = [];
-    for (const student of students) {
-      const newScore = await syncStudentStats(student);
-      results.push({ student: student.github_username, new_score: newScore });
+    for (const dev of devs) {
+      const newScore = await syncDevStats(dev);
+      results.push({ dev: dev.github_username, new_score: newScore });
     }
 
     return c.json({ status: "success", results });

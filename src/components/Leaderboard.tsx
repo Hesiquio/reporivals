@@ -1,6 +1,6 @@
 import { FC } from 'hono/jsx';
 
-export interface LeaderboardStudent {
+export interface LeaderboardDev {
   id: string;
   nombre: string;
   github_username: string;
@@ -15,18 +15,18 @@ export interface LeaderboardStudent {
 }
 
 interface LeaderboardProps {
-  students: LeaderboardStudent[];
-  currentStudentId?: string;
+  devs: LeaderboardDev[];
+  currentDevId?: string;
   isAdmin?: boolean;
 }
 
-export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, isAdmin }) => {
+export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin }) => {
   return (
     <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
       <div className="px-6 py-5 border-b border-slate-850 flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-            <span>🏆</span> Ranking de Alumnos
+            <span>🏆</span> Ranking de Devs
           </h3>
           <p className="text-xs text-slate-400 mt-1">Tabla de posiciones en tiempo real según su actividad en GitHub</p>
         </div>
@@ -36,20 +36,20 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
               <span>🔄</span> Sincronizar Todo el Ranking
             </a>
             <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
-              {students.length} Registrados
+              {devs.length} Registrados
             </span>
           </div>
         ) : (
           <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md">
-            {students.length} Registrados
+            {devs.length} Registrados
           </span>
         )}
       </div>
 
-      {students.length === 0 ? (
+      {devs.length === 0 ? (
         <div className="p-12 text-center text-slate-500 space-y-2">
           <p className="text-2xl">👋</p>
-          <p className="text-sm font-medium">No hay alumnos registrados aún.</p>
+          <p className="text-sm font-medium">No hay devs registrados aún.</p>
           <p className="text-xs text-slate-600">¡Sé el primero en iniciar sesión para aparecer en el ranking!</p>
         </div>
       ) : (
@@ -58,7 +58,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
             <thead>
               <tr className="border-b border-slate-850/50 bg-slate-950/20 text-[10px] uppercase font-bold tracking-widest text-slate-400">
                 <th className="py-4 px-6 text-center w-16">Puesto</th>
-                <th className="py-4 px-6">Alumno</th>
+                <th className="py-4 px-6">Dev</th>
                 <th className="py-4 px-6 hidden md:table-cell">Insignias</th>
                 <th className="py-4 px-6 text-right w-36">Contribuciones</th>
                 <th className="py-4 px-6 text-right w-32">Puntos</th>
@@ -66,9 +66,9 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
-              {students.map((std, index) => {
+              {devs.map((std, index) => {
                 const rank = index + 1;
-                const isCurrent = std.id === currentStudentId;
+                const isCurrent = std.id === currentDevId;
 
                 // Rank designators
                 let rankBadge = <span className="text-slate-400 font-mono text-sm">{rank}</span>;
@@ -109,7 +109,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
                             {isCurrent && (
                               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
                                 Tú
-                              </span>
+                               </span>
                             )}
                           </div>
                           <span className="text-xs text-slate-400 font-mono">@{std.github_username}</span>
@@ -151,17 +151,17 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <a
-                            href={`/admin/sync-student/${std.id}`}
+                            href={`/admin/sync-dev/${std.id}`}
                             className="text-xs bg-emerald-950/45 hover:bg-emerald-900/50 border border-emerald-900/35 text-emerald-400 p-1.5 rounded transition-colors inline-block"
-                            title="Sincronizar Alumno"
+                            title="Sincronizar Dev"
                           >
                             🔄
                           </a>
                           <a
-                            href={`/admin/delete-student/${std.id}`}
-                            onclick="return confirm('¿Seguro que deseas eliminar a este alumno del ranking?')"
+                            href={`/admin/delete-dev/${std.id}`}
+                            onclick="return confirm('¿Seguro que deseas eliminar a este dev del ranking?')"
                             className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded transition-colors inline-block"
-                            title="Eliminar Alumno"
+                            title="Eliminar Dev"
                           >
                             🗑️
                           </a>

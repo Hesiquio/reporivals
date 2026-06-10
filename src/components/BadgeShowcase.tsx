@@ -8,30 +8,30 @@ export interface Badge {
   criterio_desbloqueo: string;
 }
 
-export interface StudentBadge {
+export interface DevBadge {
   id: string;
-  student_id: string;
+  dev_id: string;
   badge_id: string;
   otorgado_en: string;
 }
 
 interface BadgeShowcaseProps {
   allBadges: Badge[];
-  studentBadges: StudentBadge[];
-  studentName: string;
+  devBadges: DevBadge[];
+  devName: string;
 }
 
 export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
   allBadges = [],
-  studentBadges = [],
-  studentName,
+  devBadges = [],
+  devName,
 }) => {
-  const unlockedBadgeMap = new Map<string, StudentBadge>();
-  studentBadges.forEach((sb) => {
+  const unlockedBadgeMap = new Map<string, DevBadge>();
+  devBadges.forEach((sb) => {
     unlockedBadgeMap.set(sb.badge_id, sb);
   });
 
-  const earnedCount = studentBadges.length;
+  const earnedCount = devBadges.length;
   const totalCount = allBadges.length;
   const completionPercentage = totalCount > 0 ? Math.round((earnedCount / totalCount) * 100) : 0;
 
@@ -44,7 +44,7 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
             🏆 Vitrina de Insignias
           </h2>
           <p className="text-sm text-slate-400 mt-1">
-            Logros e hitos alcanzados por <span className="text-emerald-400 font-semibold">{studentName}</span>
+            Logros e hitos alcanzados por <span className="text-emerald-400 font-semibold">{devName}</span>
           </p>
         </div>
 

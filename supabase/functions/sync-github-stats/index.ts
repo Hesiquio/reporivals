@@ -1,5 +1,5 @@
 // Supabase Edge Function: sync-github-stats (JSONB Compatible Version)
-// Serves as a daily cron job to sync student contribution stats and award badges.
+// Serves as a daily cron job to sync dev contribution stats and award badges.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
@@ -23,14 +23,14 @@ interface BadgeCriterion {
 
 serve(async (req) => {
   try {
-    // 1. Fetch all students
-    const { data: students, error: studentsError } = await supabase
-      .from("students")
+    // 1. Fetch all devs
+    const { data: devs, error: devsError } = await supabase
+      .from("devs")
       .select("*");
 
-    if (studentsError) throw studentsError;
-    if (!students || students.length === 0) {
-      return new Response(JSON.stringify({ message: "No students to sync." }), {
+    if (devsError) throw devsError;
+    if (!devs || devs.length === 0) {
+      return new Response(JSON.stringify({ message: "No devs to sync." }), {
         headers: { "Content-Type": "application/json" },
         status: 200,
       });
@@ -48,7 +48,7 @@ serve(async (req) => {
 
     const results = [];
 
-    for (const student of students) {
+    for (const dev of devs) {
       let commits = 0;
       let pull_requests = 0;
       let issues = 0;
@@ -64,7 +64,7 @@ serve(async (req) => {
         }
 
         const response = await fetch(
-          `https://api.github.com/users/${student.github_username}/events`,
+          `https://api.github.com/users/${dev.github_username}/events`,
           { headers }
         );
 
@@ -86,7 +86,7 @@ serve(async (req) => {
           });
         }
       } catch (err) {
-        console.error(`Error querying GitHub API for ${student.github_username}:`, err);
+        console.error(`Error querying GitHub API for ${dev.github_username}:`, err);
       }
 
       // 4. Save to github_stats using JSONB structure
@@ -94,7 +94,7 @@ serve(async (req) => {
         .from("github_stats")
         .upsert(
           {
-            student_id: student.id,
+            dev_id: dev.id,
             fecha: dateStr,
             stats: {
               commits,
@@ -103,11 +103,11 @@ serve(async (req) => {
               stars_received,
             },
           },
-          { onConflict: "student_id,fecha" }
+          { onConflict: "dev_id,fecha" }
         );
 
       if (statsError) {
-        console.error(`Failed to upsert stats for student ${student.id}:`, statsError);
+        console.error(`Failed to upsert stats for dev ${dev.id}:`, statsError);
         continue;
       }
 
@@ -115,10 +115,10 @@ serve(async (req) => {
       const { data: allStats, error: allStatsError } = await supabase
         .from("github_stats")
         .select("stats")
-        .eq("student_id", student.id);
+        .eq("dev_id", dev.id);
 
       if (allStatsError) {
-        console.error(`Error reading historical stats for student ${student.id}:`, allStatsError);
+        console.error(`Error reading historical stats for dev ${dev.id}:`, allStatsError);
         continue;
       }
 
@@ -141,9 +141,9 @@ serve(async (req) => {
       });
 
       await supabase
-        .from("students")
+        .from("devs")
         .update({ total_score: newScore })
-        .eq("id", student.id);
+        .eq("id", dev.id);
 
       // 6. Dynamic Badge Evaluation
       for (const badge of dbBadges || []) {
@@ -151,7 +151,7 @@ serve(async (req) => {
 
         if (criterion.type === "first_commit") {
           if (totalCommits > 0) {
-            await awardBadge(student.id, badge.id);
+            await awardBadge(dev.id, badge.id);
           }
         } 
         
@@ -163,7 +163,7 @@ serve(async (req) => {
           const { data: history, error: historyErr } = await supabase
             .from("github_stats")
             .select("fecha, stats")
-            .eq("student_id", student.id)
+            .eq("dev_id", dev.id)
             .order("fecha", { ascending: true });
 
           if (!historyErr && history) {
@@ -194,14 +194,14 @@ serve(async (req) => {
             }
 
             if (maxConsecutive >= targetDays) {
-              await awardBadge(student.id, badge.id);
+              await awardBadge(dev.id, badge.id);
             }
           }
         }
       }
 
       results.push({
-        student: student.github_username,
+        dev: dev.github_username,
         stats_updated: true,
         new_score: newScore,
       });
@@ -219,14 +219,14 @@ serve(async (req) => {
   }
 });
 
-async function awardBadge(studentId: string, badgeId: string) {
+async function awardBadge(devId: string, badgeId: string) {
   const { error } = await supabase
-    .from("student_badges")
+    .from("dev_badges")
     .insert({
-      student_id: studentId,
+      dev_id: devId,
       badge_id: badgeId,
     });
   if (error && error.code !== "23505") {
-    console.error(`Error awarding badge ${badgeId} to student ${studentId}:`, error);
+    console.error(`Error awarding badge ${badgeId} to dev ${devId}:`, error);
   }
 }

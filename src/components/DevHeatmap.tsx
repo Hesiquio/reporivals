@@ -1,15 +1,15 @@
 import { FC } from 'hono/jsx';
 import { ContributionDay } from './HeatmapComparator';
 
-interface StudentHeatmapProps {
-  studentName: string;
+interface DevHeatmapProps {
+  devName: string;
   githubUsername: string;
   stats: ContributionDay[];
   daysToDisplay?: number;
 }
 
-export const StudentHeatmap: FC<StudentHeatmapProps> = ({
-  studentName,
+export const DevHeatmap: FC<DevHeatmapProps> = ({
+  devName,
   githubUsername,
   stats,
   daysToDisplay = 365,
@@ -59,7 +59,7 @@ export const StudentHeatmap: FC<StudentHeatmapProps> = ({
             <span>🔥</span> Historial de Contribuciones
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Actividad de <span className="text-emerald-400 font-semibold">{studentName}</span> (@{githubUsername}) en el último año
+            Actividad de <span className="text-emerald-400 font-semibold">{devName}</span> (@{githubUsername}) en el último año
           </p>
         </div>
         <div className="flex gap-4 font-mono text-xs">
