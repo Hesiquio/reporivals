@@ -16,9 +16,10 @@ export interface LeaderboardStudent {
 interface LeaderboardProps {
   students: LeaderboardStudent[];
   currentStudentId?: string;
+  isAdmin?: boolean;
 }
 
-export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId }) => {
+export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, isAdmin }) => {
   return (
     <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
       <div className="px-6 py-5 border-b border-slate-850 flex items-center justify-between">
@@ -48,6 +49,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId }
                 <th className="py-4 px-6">Alumno</th>
                 <th className="py-4 px-6 hidden md:table-cell">Insignias</th>
                 <th className="py-4 px-6 text-right w-32">Puntos</th>
+                {isAdmin && <th className="py-4 px-6 text-center w-20">Acción</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
@@ -127,6 +129,18 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId }
                         {std.total_score.toLocaleString()} pts
                       </span>
                     </td>
+                    {isAdmin && (
+                      <td className="py-4 px-6 text-center">
+                        <a
+                          href={`/admin/delete-student/${std.id}`}
+                          onclick="return confirm('¿Seguro que deseas eliminar a este alumno del ranking?')"
+                          className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded transition-colors inline-block"
+                          title="Eliminar Alumno"
+                        >
+                          🗑️
+                        </a>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

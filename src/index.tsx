@@ -404,9 +404,33 @@ app.get('/', async (c) => {
             </div>
           </section>
 
+          {/* Admin Panel Form if Admin */}
+          {currentStudent?.is_admin && (
+            <section className="bg-slate-900/35 border border-slate-850 p-6 rounded-2xl space-y-4">
+              <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
+                <span>⚙️</span> Panel de Administración - Pre-registrar Alumno
+              </h3>
+              <form method="POST" action="/admin/add-student" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Nombre Completo</label>
+                  <input type="text" name="nombre" required placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub</label>
+                  <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div className="flex items-end">
+                  <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10">
+                    Registrar en Ranking
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+
           {/* Real Live Leaderboard */}
           <section className="space-y-4">
-            <Leaderboard students={leaderboardStudents} currentStudentId={currentStudent?.id} />
+            <Leaderboard students={leaderboardStudents} currentStudentId={currentStudent?.id} isAdmin={currentStudent?.is_admin || false} />
           </section>
 
           {/* Yearly Heatmap if logged in */}
@@ -676,6 +700,77 @@ app.get('/auth/sync-profile', async (c) => {
       console.error("Manual sync failed:", e);
     }
   }
+  return c.redirect('/');
+});
+
+// Helper to check if requester is admin
+async function getAdminUser(c: any) {
+  if (!supabase) return null;
+  const accessToken = getCookie(c, 'sb-access-token');
+  if (!accessToken) return null;
+  
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+    if (user && !userError) {
+      const { data: student } = await supabase.from('students').select('*').eq('auth_id', user.id).single();
+      if (student && student.is_admin) {
+        return student;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+app.post('/admin/add-student', async (c) => {
+  const admin = await getAdminUser(c);
+  if (!admin) {
+    return c.text('Unauthorized: Access denied', 403);
+  }
+
+  const body = await c.req.parseBody();
+  const nombre = body.nombre as string;
+  const github_username = (body.github_username as string).trim();
+
+  if (!nombre || !github_username) {
+    return c.text('Missing required fields', 400);
+  }
+
+  if (supabase) {
+    try {
+      const { data: newStudent, error } = await supabase
+        .from('students')
+        .insert({ nombre, github_username })
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      if (newStudent) {
+        await syncStudentStats(newStudent);
+      }
+    } catch (err: any) {
+      return c.text('Error adding student: ' + err.message, 500);
+    }
+  }
+
+  return c.redirect('/');
+});
+
+app.get('/admin/delete-student/:id', async (c) => {
+  const admin = await getAdminUser(c);
+  if (!admin) {
+    return c.text('Unauthorized: Access denied', 403);
+  }
+
+  const id = c.req.param('id');
+  if (supabase && id) {
+    try {
+      await supabase.from('students').delete().eq('id', id);
+    } catch (err: any) {
+      return c.text('Error deleting student: ' + err.message, 500);
+    }
+  }
+
   return c.redirect('/');
 });
 
