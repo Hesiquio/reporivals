@@ -402,7 +402,36 @@ app.get('/auth/callback', async (c) => {
   }
 
   if (!code) {
-    return c.text('Authorization code not provided', 400);
+    return c.html(
+      `<html>
+        <head><title>Autenticando...</title></head>
+        <body style="background:#020617;color:#f1f5f9;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+          <div style="text-align:center;">
+            <p style="font-size:1.125rem;font-weight:600;">Autenticando con GitHub...</p>
+            <p style="font-size:0.875rem;color:#94a3b8;">Por favor espera un momento.</p>
+          </div>
+          <script>
+            const hash = window.location.hash;
+            if (hash) {
+              const params = new URLSearchParams(hash.substring(1));
+              const accessToken = params.get('access_token');
+              const refreshToken = params.get('refresh_token');
+              if (accessToken && refreshToken) {
+                const isSecure = !window.location.hostname.includes('localhost');
+                const secureFlag = isSecure ? "; Secure" : "";
+                document.cookie = "sb-access-token=" + accessToken + "; path=/; max-age=" + (60 * 60 * 24 * 7) + "; SameSite=Lax" + secureFlag;
+                document.cookie = "sb-refresh-token=" + refreshToken + "; path=/; max-age=" + (60 * 60 * 24 * 7) + "; SameSite=Lax" + secureFlag;
+                window.location.href = "/";
+              } else {
+                document.body.innerHTML = "<p style='color:#ef4444;'>Error: No se encontraron los tokens en la URL.</p>";
+              }
+            } else {
+              document.body.innerHTML = "<p style='color:#ef4444;'>Error: No se proporcionó el código de autorización (code) ni el hash de acceso.</p>";
+            }
+          </script>
+        </body>
+      </html>`
+    );
   }
 
   const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
