@@ -6,6 +6,7 @@ export interface LeaderboardStudent {
   github_username: string;
   avatar_url?: string;
   total_score: number;
+  total_contributions: number;
   badges?: Array<{
     id: string;
     nombre: string;
@@ -48,6 +49,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
                 <th className="py-4 px-6 text-center w-16">Puesto</th>
                 <th className="py-4 px-6">Alumno</th>
                 <th className="py-4 px-6 hidden md:table-cell">Insignias</th>
+                <th className="py-4 px-6 text-right w-36">Contribuciones</th>
                 <th className="py-4 px-6 text-right w-32">Puntos</th>
                 {isAdmin && <th className="py-4 px-6 text-center w-20">Acción</th>}
               </tr>
@@ -123,6 +125,11 @@ export const Leaderboard: FC<LeaderboardProps> = ({ students, currentStudentId, 
                           <span className="text-xs text-slate-650 font-mono italic">Sin insignias</span>
                         )}
                       </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className="text-sm font-semibold text-slate-300 font-mono">
+                        {std.total_contributions.toLocaleString()}
+                      </span>
                     </td>
                     <td className="py-4 px-6 text-right">
                       <span className="text-sm font-extrabold text-emerald-400 font-mono">

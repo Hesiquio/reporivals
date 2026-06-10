@@ -103,7 +103,8 @@ async function syncStudentStats(student: { id: string; github_username: string }
 
         const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
 
-        await supabase.from("students").update({ total_score: newScore }).eq("id", student.id);
+        const totalContributions = calendar.totalContributions || 0;
+        await supabase.from("students").update({ total_score: newScore, total_contributions: totalContributions }).eq("id", student.id);
 
         // Evaluate badges
         const totalCommits = commits;
@@ -231,6 +232,7 @@ app.get('/', async (c) => {
         github_username: student.github_username,
         avatar_url: student.avatar_url,
         total_score: student.total_score,
+        total_contributions: student.total_contributions || 0,
         badges: badgesByStudent[student.id] || [],
       }));
     } catch (e) {
@@ -302,6 +304,7 @@ app.get('/', async (c) => {
             github_username: student.github_username,
             avatar_url: student.avatar_url,
             total_score: student.total_score,
+            total_contributions: student.total_contributions || 0,
             badges: badgesByStudent[student.id] || [],
           }));
         } catch(err){}
