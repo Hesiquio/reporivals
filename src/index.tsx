@@ -374,6 +374,9 @@ app.get('/', async (c) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              ⚔️ Duelo VS
+            </a>
             <a href="/sobre-nosotros" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
               Sobre Nosotros
             </a>
@@ -459,18 +462,6 @@ app.get('/', async (c) => {
           <section className="space-y-4">
             <Leaderboard devs={leaderboardDevs} currentDevId={currentDev?.id} isAdmin={currentDev?.is_admin || false} activeSort={sort} />
           </section>
-
-          {/* Yearly Heatmap if logged in */}
-          {currentDev && (
-            <section className="space-y-4">
-              <DevHeatmap
-                devName={currentDev.nombre}
-                githubUsername={currentDev.github_username}
-                stats={currentDevStats}
-                daysToDisplay={365}
-              />
-            </section>
-          )}
         </main>
 
         <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
@@ -597,6 +588,316 @@ app.get('/sobre-nosotros', async (c) => {
               devName={devDataA.dev.nombre}
             />
           </section>
+        </main>
+
+        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
+          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        </footer>
+      </body>
+    </html>
+  );
+});
+
+// GET Route: Renders the dynamic Dev profile page
+app.get('/dev/:username', async (c) => {
+  const username = c.req.param('username');
+  let currentDev: any = null;
+  const accessToken = getCookie(c, 'sb-access-token');
+
+  if (supabase && accessToken) {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+      if (user && !userError) {
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) currentDev = dev;
+      }
+    } catch (e) {}
+  }
+
+  if (!supabase) {
+    return c.text('Supabase is not configured', 500);
+  }
+
+  // Fetch the developer details from the database
+  const { data: targetDev, error: devError } = await supabase
+    .from('devs')
+    .select('*')
+    .eq('github_username', username)
+    .single();
+
+  if (devError || !targetDev) {
+    return c.text(`Desarrollador @${username} no encontrado.`, 404);
+  }
+
+  // Fetch all dev's badges
+  const { data: earnedBadges } = await supabase
+    .from('dev_badges')
+    .select('id, dev_id, badge_id, otorgado_en')
+    .eq('dev_id', targetDev.id);
+
+  // Fetch all global badges
+  const { data: allBadges } = await supabase
+    .from('badges')
+    .select('*');
+
+  // Fetch stats for the heatmap (last 365 days)
+  const oneYearAgo = new Date();
+  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+
+  const { data: statsData } = await supabase
+    .from('github_stats')
+    .select('fecha, stats')
+    .eq('dev_id', targetDev.id)
+    .gte('fecha', oneYearAgoStr)
+    .order('fecha', { ascending: true });
+
+  const currentDevStats = (statsData || []).map((row) => ({
+    fecha: row.fecha,
+    commits: row.stats?.commits || 0,
+    pull_requests: row.stats?.pull_requests || 0,
+    issues: row.stats?.issues || 0,
+    stars_received: row.stats?.stars_received || 0,
+  }));
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perfil de @{targetDev.github_username} - Repo Rivals</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>{`
+          dialog::backdrop {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(4px);
+          }
+        `}</style>
+      </head>
+      <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <a href="/" className="hover:text-emerald-400 transition-colors">
+                <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
+              </a>
+              <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
+                Ingeniería en Sistemas
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Volver al Ranking
+            </a>
+            <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              ⚔️ Duelo VS
+            </a>
+            {currentDev ? (
+              <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
+                </div>
+                <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                  Salir
+                </a>
+              </div>
+            ) : (
+              <a href="/auth/login" className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-lg font-bold transition-all shadow-md shadow-emerald-500/10 font-medium">
+                Iniciar con GitHub
+              </a>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+          {/* Card Perfil */}
+          <section className="bg-slate-900/40 border border-slate-850 p-8 rounded-2xl flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+            <img src={targetDev.avatar_url} className="w-24 h-24 rounded-full border border-slate-800 ring-4 ring-emerald-500/20" alt={targetDev.nombre} />
+            <div className="text-center sm:text-left space-y-2 flex-1">
+              <h2 className="text-2xl font-black text-white">{targetDev.nombre}</h2>
+              <p className="text-slate-400 text-sm font-mono">@{targetDev.github_username}</p>
+              
+              <div className="flex flex-wrap gap-4 mt-2 justify-center sm:justify-start">
+                <span className="text-xs bg-emerald-500/15 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/10 font-mono font-bold">
+                  🔥 Contribuciones: {targetDev.total_contributions}
+                </span>
+                <span className="text-xs bg-cyan-500/15 text-cyan-400 px-3 py-1 rounded-full border border-cyan-500/10 font-mono font-bold">
+                  💎 Puntos: {targetDev.total_score} pts
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Heatmap */}
+          <section>
+            <DevHeatmap
+              devName={targetDev.nombre}
+              githubUsername={targetDev.github_username}
+              stats={currentDevStats}
+              daysToDisplay={365}
+            />
+          </section>
+
+          {/* Badges Showcase */}
+          <section>
+            <BadgeShowcase
+              allBadges={allBadges || []}
+              devBadges={earnedBadges || []}
+              devName={targetDev.nombre}
+            />
+          </section>
+        </main>
+
+        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
+          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        </footer>
+      </body>
+    </html>
+  );
+});
+
+// GET Route: Renders the Duelo VS screen to compare 2 devs
+app.get('/duelo-vs', async (c) => {
+  let currentDev: any = null;
+  const accessToken = getCookie(c, 'sb-access-token');
+
+  if (supabase && accessToken) {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+      if (user && !userError) {
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) currentDev = dev;
+      }
+    } catch (e) {}
+  }
+
+  if (!supabase) {
+    return c.text('Supabase is not configured', 500);
+  }
+
+  // Fetch all devs to populate select options
+  const { data: allDevs } = await supabase
+    .from('devs')
+    .select('id, nombre, github_username')
+    .order('nombre', { ascending: true });
+
+  const devAId = c.req.query('devA');
+  const devBId = c.req.query('devB');
+
+  let devDataA: any = null;
+  let devDataB: any = null;
+
+  const oneYearAgo = new Date();
+  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+
+  if (devAId) {
+    const { data: dev } = await supabase.from('devs').select('*').eq('id', devAId).single();
+    const { data: stats } = await supabase.from('github_stats').select('fecha, stats').eq('dev_id', devAId).gte('fecha', oneYearAgoStr);
+    if (dev) {
+      devDataA = {
+        dev,
+        stats: (stats || []).map(row => ({
+          fecha: row.fecha,
+          commits: row.stats?.commits || 0,
+          pull_requests: row.stats?.pull_requests || 0,
+          issues: row.stats?.issues || 0,
+          stars_received: row.stats?.stars_received || 0,
+        }))
+      };
+    }
+  }
+
+  if (devBId) {
+    const { data: dev } = await supabase.from('devs').select('*').eq('id', devBId).single();
+    const { data: stats } = await supabase.from('github_stats').select('fecha, stats').eq('dev_id', devBId).gte('fecha', oneYearAgoStr);
+    if (dev) {
+      devDataB = {
+        dev,
+        stats: (stats || []).map(row => ({
+          fecha: row.fecha,
+          commits: row.stats?.commits || 0,
+          pull_requests: row.stats?.pull_requests || 0,
+          issues: row.stats?.issues || 0,
+          stars_received: row.stats?.stars_received || 0,
+        }))
+      };
+    }
+  }
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>⚔️ Duelo VS - Repo Rivals</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <a href="/" className="hover:text-emerald-400 transition-colors">
+                <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
+              </a>
+              <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
+                Ingeniería en Sistemas
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Volver al Ranking
+            </a>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+          <section className="bg-slate-900/30 border border-slate-850 p-6 rounded-2xl text-center space-y-4">
+            <h2 className="text-2xl font-black text-white">⚔️ Duelo Comparativo VS</h2>
+            <p className="text-slate-400 text-sm max-w-xl mx-auto">Selecciona dos desarrolladores para comparar de frente su actividad, commits históricos e insignias obtenidas.</p>
+            
+            <form method="GET" action="/duelo-vs" className="flex flex-col sm:flex-row gap-4 justify-center items-end max-w-2xl mx-auto pt-2">
+              <div className="flex-1 w-full text-left">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Dev A</label>
+                <select name="devA" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500/50">
+                  <option value="">Selecciona Dev A...</option>
+                  {(allDevs || []).map(d => (
+                    <option value={d.id} selected={d.id === devAId}>{d.nombre} (@{d.github_username})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="text-slate-500 font-bold self-center pb-2">VS</div>
+
+              <div className="flex-1 w-full text-left">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Dev B</label>
+                <select name="devB" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500/50">
+                  <option value="">Selecciona Dev B...</option>
+                  {(allDevs || []).map(d => (
+                    <option value={d.id} selected={d.id === devBId}>{d.nombre} (@{d.github_username})</option>
+                  ))}
+                </select>
+              </div>
+
+              <button type="submit" className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-450 hover:to-teal-450 text-slate-950 text-sm font-extrabold py-2 px-6 rounded-xl transition-all shadow-md">
+                Comparar
+              </button>
+            </form>
+          </section>
+
+          {devDataA && devDataB ? (
+            <HeatmapComparator devA={devDataA} devB={devDataB} daysToDisplay={120} />
+          ) : (
+            <div className="p-16 border border-dashed border-slate-850 rounded-2xl text-center text-slate-500">
+              <p className="text-4xl">⚔️</p>
+              <p className="text-sm font-medium mt-2">Selecciona a dos devs arriba para iniciar el versus.</p>
+            </div>
+          )}
         </main>
 
         <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">

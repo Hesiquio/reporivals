@@ -127,7 +127,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                       {rankBadge}
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
+                      <a href={`/dev/${std.github_username}`} className="flex items-center gap-3 hover:opacity-85 transition-opacity group">
                         {std.avatar_url ? (
                           <img
                             src={std.avatar_url}
@@ -141,7 +141,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                         )}
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white">{std.nombre}</span>
+                            <span className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{std.nombre}</span>
                             {isCurrent && (
                               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
                                 Tú
@@ -150,7 +150,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                           </div>
                           <span className="text-xs text-slate-400 font-mono">@{std.github_username}</span>
                         </div>
-                      </div>
+                      </a>
                     </td>
                     <td className="py-4 px-6 hidden md:table-cell">
                       <div className="flex items-center gap-1.5 flex-wrap">
