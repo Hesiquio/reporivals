@@ -259,6 +259,10 @@ app.get('/', async (c) => {
     }
   }
 
+  // Calculate interactive banner stats
+  const totalDevsCount = leaderboardDevs.length;
+  const totalGlobalContributions = leaderboardDevs.reduce((sum, d) => sum + d.total_contributions, 0);
+
   // Load logged-in dev's yearly stats (365 days)
   let currentDevStats: any[] = [];
   if (currentDev && supabase) {
@@ -416,13 +420,17 @@ app.get('/', async (c) => {
               </p>
             </div>
             <div className="flex gap-3">
-              <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center">
-                <span className="block text-2xl font-bold text-white">42</span>
+              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[90px]">
+                <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
                 <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
               </div>
-              <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center">
-                <span className="block text-2xl font-bold text-emerald-400">12.5k</span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Commits</span>
+              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[120px]">
+                <span className="block text-2xl font-bold text-emerald-400">
+                  {totalGlobalContributions >= 1000 
+                    ? `${(totalGlobalContributions / 1000).toFixed(1)}k` 
+                    : totalGlobalContributions}
+                </span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold">Contribuciones</span>
               </div>
             </div>
           </section>
