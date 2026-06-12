@@ -130,11 +130,15 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         const totalContributions = calendar.totalContributions || 0;
         const publicRepos = userObj.repositories?.totalCount || 0;
         
+        // Safe metadata update fallback
+        const currentMetadata = (dev as any).metadata || {};
+        const updatedMetadata = { ...currentMetadata, public_repos: publicRepos };
+        
         // Auto-fill avatar and name if not already set or updated from GitHub
         const updateData: any = { 
           total_score: newScore, 
           total_contributions: totalContributions,
-          public_repos: publicRepos
+          metadata: updatedMetadata
         };
         if (userObj.avatarUrl) {
           updateData.avatar_url = userObj.avatarUrl;
@@ -143,7 +147,15 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
           updateData.nombre = userObj.name;
         }
 
+        // 1. Perform safe primary update (score, contributions, metadata, name, avatar)
         await supabase.from("devs").update(updateData).eq("id", dev.id);
+
+        // 2. Perform silent update on dedicated column (which might not exist yet in DB)
+        try {
+          await supabase.from("devs").update({ public_repos: publicRepos }).eq("id", dev.id);
+        } catch (e) {
+          // Column public_repos probably doesn't exist yet, fallback to metadata is active
+        }
 
         // Evaluate badges
         const totalCommits = commits;
@@ -276,7 +288,7 @@ app.get('/', async (c) => {
         avatar_url: dev.avatar_url,
         total_score: dev.total_score,
         total_contributions: dev.total_contributions || 0,
-        public_repos: dev.public_repos || 0,
+        public_repos: dev.public_repos || dev.metadata?.public_repos || 0,
         badges: badgesByDev[dev.id] || [],
       }));
     } catch (e) {
