@@ -143,21 +143,28 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         
         repoNodes.forEach((node: any) => {
           const lang = node.primaryLanguage;
+          totalValids++;
           if (lang && lang.name) {
-            totalValids++;
             if (!languageCounts[lang.name]) {
               languageCounts[lang.name] = { count: 0, color: lang.color || '#cccccc' };
             }
             languageCounts[lang.name].count++;
+          } else {
+            // Group repositories without primary language as "Otros"
+            if (!languageCounts["Otros"]) {
+              languageCounts["Otros"] = { count: 0, color: "#64748b" };
+            }
+            languageCounts["Otros"].count++;
           }
         });
         
-        // Convert language counts to percentages
+        // Convert language counts to percentages and counts
         const languagesList = Object.entries(languageCounts).map(([name, val]) => ({
           name,
           color: val.color,
+          count: val.count,
           percentage: totalValids > 0 ? Math.round((val.count / totalValids) * 100) : 0
-        })).sort((a, b) => b.percentage - a.percentage);
+        })).sort((a, b) => b.count - a.count);
 
         // 2. Compute Active Streak (días seguidos con aportaciones)
         let activeStreak = 0;
@@ -323,10 +330,12 @@ app.get('/', async (c) => {
 
   // Load real devs list for Leaderboard
   let leaderboardDevs: LeaderboardDev[] = [];
+  let devsData: any[] | null = null;
   if (supabase) {
     try {
       const orderColumn = sort === 'score' ? 'total_score' : 'total_contributions';
-      const { data: devsData } = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
+      const result = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
+      devsData = result.data;
       const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
       
       const badgesByDev: Record<string, any[]> = {};
@@ -366,7 +375,38 @@ app.get('/', async (c) => {
   // Calculate interactive banner stats
   const totalDevsCount = leaderboardDevs.length;
   const totalGlobalContributions = leaderboardDevs.reduce((sum, d) => sum + d.total_contributions, 0);
-  const totalGlobalRepos = leaderboardDevs.reduce((sum, d) => sum + (d.public_repos || 0), 0);
+
+  // Group technologies and count projects globally
+  const globalLanguagesMap: Record<string, { count: number; color: string }> = {};
+  let computedTotalGlobalRepos = 0;
+
+  leaderboardDevs.forEach((dev: any) => {
+    // Attempt to read languages from raw dev object in database
+    const rawDev = (devsData || []).find((d: any) => d.id === dev.id);
+    const langs = rawDev?.metadata?.languages || [];
+    
+    langs.forEach((l: any) => {
+      const name = l.name || 'Otros';
+      const count = l.count || 1;
+      const color = l.color || '#64748b';
+      
+      if (!globalLanguagesMap[name]) {
+        globalLanguagesMap[name] = { count: 0, color };
+      }
+      globalLanguagesMap[name].count += count;
+      computedTotalGlobalRepos += count;
+    });
+  });
+
+  // Sort technologies by project count (popularity)
+  const sortedGlobalLanguages = Object.entries(globalLanguagesMap).map(([name, val]) => ({
+    name,
+    color: val.color,
+    count: val.count
+  })).sort((a, b) => b.count - a.count);
+
+  const totalGlobalRepos = computedTotalGlobalRepos;
+  const totalTechnologiesCount = sortedGlobalLanguages.filter(l => l.name !== 'Otros').length;
 
   // Load logged-in dev's yearly stats (365 days)
   let currentDevStats: any[] = [];
@@ -546,10 +586,68 @@ app.get('/', async (c) => {
                     ? `${(totalGlobalRepos / 1000).toFixed(1)}k` 
                     : totalGlobalRepos}
                 </span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Repositorios</span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold">Proyectos</span>
+              </div>
+              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px]">
+                <span className="block text-2xl font-bold text-amber-400">
+                  {totalTechnologiesCount}
+                </span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold">Tecnologías</span>
               </div>
             </div>
           </section>
+
+          {/* Ecosistema de Tecnologías Global */}
+          {sortedGlobalLanguages.length > 0 ? (
+            <section className="bg-slate-900/20 border border-slate-900/80 p-6 rounded-2xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                    <span>🛠️</span> Ecosistema Tecnológico de la Competencia
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Distribución total de tecnologías y proyectos creados por los devs</p>
+                </div>
+                <span className="text-[10px] font-mono bg-slate-950 px-2.5 py-1 rounded-md border border-slate-850 text-slate-400 self-start sm:self-auto">
+                  {totalGlobalRepos} Proyectos Totales Soportados
+                </span>
+              </div>
+
+              {/* Segmented Progress Bar */}
+              <div className="w-full h-3 rounded-full overflow-hidden bg-slate-950 border border-slate-850/60 flex">
+                {sortedGlobalLanguages.map((lang: any) => {
+                  const pct = totalGlobalRepos > 0 ? (lang.count / totalGlobalRepos) * 100 : 0;
+                  return (
+                    <div 
+                      key={lang.name}
+                      style={{ width: `${pct}%`, backgroundColor: lang.color }}
+                      className="h-full first:rounded-l-full last:rounded-r-full"
+                      title={`${lang.name}: ${lang.count} proyectos (${Math.round(pct)}%)`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Tags grid */}
+              <div className="flex flex-wrap gap-2">
+                {sortedGlobalLanguages.map((lang: any) => {
+                  const pct = totalGlobalRepos > 0 ? Math.round((lang.count / totalGlobalRepos) * 100) : 0;
+                  return (
+                    <span 
+                      key={lang.name}
+                      style={{ borderColor: `${lang.color}20` }}
+                      className="inline-flex items-center gap-2 bg-slate-900/40 border px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: lang.color }} />
+                      <span className="text-white">{lang.name}</span>
+                      <span className="bg-slate-950 text-[10px] font-mono font-bold text-slate-400 px-2 py-0.5 rounded-md border border-slate-800">
+                        {lang.count} {lang.count === 1 ? 'proyecto' : 'proyectos'} ({pct}%)
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           {/* Admin Panel Form if Admin */}
           {currentDev?.is_admin && (
