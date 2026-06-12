@@ -18,32 +18,54 @@ interface LeaderboardProps {
   devs: LeaderboardDev[];
   currentDevId?: string;
   isAdmin?: boolean;
+  activeSort?: string;
 }
 
-export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin }) => {
+export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin, activeSort = 'contributions' }) => {
   return (
     <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
-      <div className="px-6 py-5 border-b border-slate-850 flex items-center justify-between">
+      <div className="px-6 py-5 border-b border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
             <span>🏆</span> Ranking de Devs
           </h3>
           <p className="text-xs text-slate-400 mt-1">Tabla de posiciones en tiempo real según su actividad en GitHub</p>
         </div>
-        {isAdmin ? (
-          <div className="flex items-center gap-3">
+
+        {/* View toggles (Contribuciones vs Puntos) */}
+        <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850 self-start sm:self-auto">
+          <a
+            href="?sort=contributions"
+            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+              activeSort === 'contributions'
+                ? 'bg-slate-900 text-white shadow-sm border border-slate-800'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            🔥 Contribuciones
+          </a>
+          <a
+            href="?sort=score"
+            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+              activeSort === 'score'
+                ? 'bg-slate-900 text-emerald-400 shadow-sm border border-slate-800'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            💎 Puntos
+          </a>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isAdmin && (
             <a href="/admin/sync-all" className="text-xs font-bold text-emerald-400 hover:text-emerald-350 bg-emerald-950/20 border border-emerald-900/30 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-950/10">
-              <span>🔄</span> Sincronizar Todo el Ranking
+              <span>🔄</span> Sincronizar Todo
             </a>
-            <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
-              {devs.length} Registrados
-            </span>
-          </div>
-        ) : (
-          <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md">
+          )}
+          <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
             {devs.length} Registrados
           </span>
-        )}
+        </div>
       </div>
 
       {devs.length === 0 ? (

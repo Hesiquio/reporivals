@@ -201,11 +201,15 @@ app.get('/', async (c) => {
     }
   }
 
+  // Sort parameter
+  const sort = c.req.query('sort') || 'contributions'; // default to contributions like github
+
   // Load real devs list for Leaderboard
   let leaderboardDevs: LeaderboardDev[] = [];
   if (supabase) {
     try {
-      const { data: devsData } = await supabase.from('devs').select('*').order('total_score', { ascending: false });
+      const orderColumn = sort === 'score' ? 'total_score' : 'total_contributions';
+      const { data: devsData } = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
       const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
       
       const badgesByDev: Record<string, any[]> = {};
@@ -277,7 +281,8 @@ app.get('/', async (c) => {
 
         // Also reload the leaderboard devs list so the user sees their updated rank immediately!
         try {
-          const { data: devsData } = await supabase.from('devs').select('*').order('total_score', { ascending: false });
+          const orderColumn = sort === 'score' ? 'total_score' : 'total_contributions';
+          const { data: devsData } = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
           const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
           
           const badgesByDev: Record<string, any[]> = {};
@@ -433,7 +438,7 @@ app.get('/', async (c) => {
 
           {/* Real Live Leaderboard */}
           <section className="space-y-4">
-            <Leaderboard devs={leaderboardDevs} currentDevId={currentDev?.id} isAdmin={currentDev?.is_admin || false} />
+            <Leaderboard devs={leaderboardDevs} currentDevId={currentDev?.id} isAdmin={currentDev?.is_admin || false} activeSort={sort} />
           </section>
 
           {/* Yearly Heatmap if logged in */}
