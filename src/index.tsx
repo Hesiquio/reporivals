@@ -568,13 +568,13 @@ app.get('/', async (c) => {
               </p>
             </div>
             
-            {/* Stats section on the right (Align right on desktop, grid on mobile) */}
-            <div className="space-y-3 w-full md:w-auto">
-              <div className="flex items-center gap-1.5 border-b border-slate-850 pb-1.5 justify-start md:justify-end">
+            {/* Stats section on the right (Centered) */}
+            <div className="space-y-3 w-full md:w-auto flex flex-col items-center">
+              <div className="flex items-center justify-center gap-1.5 border-b border-slate-850 pb-1.5 w-full text-center">
                 <span className="text-xs">📊</span>
                 <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400">Estadísticas Globales</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:justify-end">
+              <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap justify-center">
                 <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center min-w-[90px] md:min-w-[100px] flex flex-col justify-center">
                   <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
                   <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
