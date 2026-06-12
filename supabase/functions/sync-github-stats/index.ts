@@ -56,94 +56,96 @@ serve(async (req) => {
 
       // 3. GitHub API fetch
       try {
+        // Use GraphQL for syncing to get exact historical contribution count and details
+        const query = `
+          query($username: String!) {
+            user(login: $username) {
+              name
+              avatarUrl
+              contributionsCollection {
+                totalCommitContributions
+                totalPullRequestContributions
+                totalIssueContributions
+                contributionCalendar {
+                  totalContributions
+                  weeks {
+                    contributionDays {
+                      date
+                      contributionCount
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+
         const headers: HeadersInit = {
-          "Accept": "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
         };
         if (GITHUB_PAT) {
           headers["Authorization"] = `Bearer ${GITHUB_PAT}`;
         }
 
-        const response = await fetch(
-          `https://api.github.com/users/${dev.github_username}/events`,
-          { headers }
-        );
+        const response = await fetch("https://api.github.com/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query,
+            variables: { username: dev.github_username },
+          }),
+        });
 
         if (response.ok) {
-          const events = await response.json();
-          events.forEach((event: any) => {
-            const eventDate = event.created_at ? event.created_at.split("T")[0] : "";
-            if (eventDate === dateStr) {
-              if (event.type === "PushEvent") {
-                commits += event.payload?.commits?.length || 1;
-              } else if (event.type === "PullRequestEvent" && event.payload?.action === "opened") {
-                pull_requests += 1;
-              } else if (event.type === "IssuesEvent" && event.payload?.action === "opened") {
-                issues += 1;
-              } else if (event.type === "WatchEvent" && event.payload?.action === "started") {
-                stars_received += 1;
+          const result = await response.json();
+          const userObj = result.data?.user;
+          if (userObj) {
+            const collection = userObj.contributionsCollection;
+            const calendar = collection.contributionCalendar;
+
+            const weeks = calendar.weeks || [];
+            for (const week of weeks) {
+              const days = week.contributionDays || [];
+              for (const day of days) {
+                const dateStr = day.date;
+                const count = day.contributionCount || 0;
+
+                await supabase.from("github_stats").upsert({
+                  dev_id: dev.id,
+                  fecha: dateStr,
+                  stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 },
+                }, { onConflict: "dev_id,fecha" });
               }
             }
-          });
+
+            const commits = collection.totalCommitContributions || 0;
+            const prs = collection.totalPullRequestContributions || 0;
+            const issues = collection.totalIssueContributions || 0;
+
+            const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
+            const totalContributions = calendar.totalContributions || 0;
+
+            const updateData: any = {
+              total_score: newScore,
+              total_contributions: totalContributions
+            };
+            if (userObj.avatarUrl) {
+              updateData.avatar_url = userObj.avatarUrl;
+            }
+            if (userObj.name) {
+              updateData.nombre = userObj.name;
+            }
+
+            await supabase
+              .from("devs")
+              .update(updateData)
+              .eq("id", dev.id);
+          }
         }
       } catch (err) {
         console.error(`Error querying GitHub API for ${dev.github_username}:`, err);
       }
-
-      // 4. Save to github_stats using JSONB structure
-      const { error: statsError } = await supabase
-        .from("github_stats")
-        .upsert(
-          {
-            dev_id: dev.id,
-            fecha: dateStr,
-            stats: {
-              commits,
-              pull_requests,
-              issues,
-              stars_received,
-            },
-          },
-          { onConflict: "dev_id,fecha" }
-        );
-
-      if (statsError) {
-        console.error(`Failed to upsert stats for dev ${dev.id}:`, statsError);
-        continue;
-      }
-
-      // 5. Recalculate score from JSONB database values
-      const { data: allStats, error: allStatsError } = await supabase
-        .from("github_stats")
-        .select("stats")
-        .eq("dev_id", dev.id);
-
-      if (allStatsError) {
-        console.error(`Error reading historical stats for dev ${dev.id}:`, allStatsError);
-        continue;
-      }
-
-      let newScore = 0;
-      let totalCommits = 0;
-
-      allStats?.forEach((row) => {
-        const statsObj = row.stats || {};
-        const c = statsObj.commits || 0;
-        const pr = statsObj.pull_requests || 0;
-        const iss = statsObj.issues || 0;
-        const star = statsObj.stars_received || 0;
-
-        totalCommits += c;
-        newScore +=
-          c * POINTS_PER_COMMIT +
-          pr * POINTS_PER_PR +
-          iss * POINTS_PER_ISSUE +
-          star * POINTS_PER_STAR;
-      });
-
-      await supabase
-        .from("devs")
-        .update({ total_score: newScore })
-        .eq("id", dev.id);
 
       // 6. Dynamic Badge Evaluation
       for (const badge of dbBadges || []) {
