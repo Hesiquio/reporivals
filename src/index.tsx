@@ -61,11 +61,13 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
       "Accept": "application/json",
+      "User-Agent": "RepoRivals-App"
     };
     if (GITHUB_PAT) {
       headers["Authorization"] = `Bearer ${GITHUB_PAT}`;
     }
 
+    console.log(`[Sync] Fetching stats from GitHub GraphQL for username: ${dev.github_username}`);
     const response = await fetch("https://api.github.com/graphql", {
       method: "POST",
       headers,
@@ -77,24 +79,42 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
 
     if (response.ok) {
       const result = await response.json();
+      if (result.errors) {
+        console.error(`[Sync] GitHub GraphQL query errors for ${dev.github_username}:`, JSON.stringify(result.errors));
+        return 0;
+      }
+
       const userObj = result.data?.user;
       if (userObj) {
         const collection = userObj.contributionsCollection;
         const calendar = collection.contributionCalendar;
 
         const weeks = calendar.weeks || [];
+        const bulkStats: any[] = [];
+        
         for (const week of weeks) {
           const days = week.contributionDays || [];
           for (const day of days) {
             const dateStr = day.date;
             const count = day.contributionCount || 0;
 
-            // Map the daily contribution count as commits in stats (so colors and counts match)
-            await supabase.from("github_stats").upsert({
+            // Collect the daily contribution count as commits in stats array
+            bulkStats.push({
               dev_id: dev.id,
               fecha: dateStr,
-              stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 },
-            }, { onConflict: "dev_id,fecha" });
+              stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 }
+            });
+          }
+        }
+
+        // Perform bulk upsert in a single network request
+        if (bulkStats.length > 0) {
+          const { error: upsertError } = await supabase
+            .from("github_stats")
+            .upsert(bulkStats, { onConflict: "dev_id,fecha" });
+          
+          if (upsertError) {
+            console.error(`[Sync] Bulk upsert error for ${dev.github_username}:`, upsertError);
           }
         }
 
@@ -1129,21 +1149,26 @@ app.get('/admin/sync-all', async (c) => {
   }
 
   if (supabase) {
-    try {
-      const { data: devs } = await supabase.from('devs').select('*');
-      if (devs) {
-        for (const dev of devs) {
-          await syncDevStats(dev);
-        }
+    // Fetch developers to sync
+    supabase.from('devs').select('*').then(({ data: devs }) => {
+      if (devs && devs.length > 0) {
+        console.log(`[SyncAll] Starting background sync for ${devs.length} devs...`);
+        // Execute syncs in parallel to optimize DB connections and speed
+        Promise.all(devs.map(dev => 
+          syncDevStats(dev)
+            .then(res => console.log(`[SyncAll] Finished syncing @${dev.github_username}: ${res} contributions`))
+            .catch(err => console.error(`[SyncAll] Error syncing @${dev.github_username}:`, err))
+        )).then(() => {
+          console.log('[SyncAll] Background sync for all developers completed.');
+        });
       }
-    } catch (err: any) {
-      return c.text('Error syncing all devs: ' + err.message, 500);
-    }
+    }).catch(err => {
+      console.error('[SyncAll] Error fetching devs for background sync:', err);
+    });
   }
 
+  // Redirect immediately so the page does not freeze
   return c.redirect('/');
-});
-
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
 app.post('/api/sync', async (c) => {
   if (!supabase) {
