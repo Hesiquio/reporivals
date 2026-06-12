@@ -558,8 +558,8 @@ app.get('/', async (c) => {
 
         <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
           {/* Banner */}
-          <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-900 p-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-            <div className="max-w-xl">
+          <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-900 p-8 rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-8">
+            <div className="max-w-xl text-left">
               <h2 className="text-2xl md:text-3xl font-black text-white">
                 Plataforma Gamificada de Aprendizaje
               </h2>
@@ -568,18 +568,18 @@ app.get('/', async (c) => {
               </p>
             </div>
             
-            {/* Stats section on the right */}
+            {/* Stats section on the right (Align right on desktop, grid on mobile) */}
             <div className="space-y-3 w-full md:w-auto">
-              <div className="flex items-center gap-1.5 border-b border-slate-850 pb-1.5">
+              <div className="flex items-center gap-1.5 border-b border-slate-850 pb-1.5 justify-start md:justify-end">
                 <span className="text-xs">📊</span>
                 <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400">Estadísticas Globales</span>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[90px] flex-1 sm:flex-initial">
+              <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:justify-end">
+                <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center min-w-[90px] md:min-w-[100px] flex flex-col justify-center">
                   <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
                   <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
                 </div>
-                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[120px] flex-1 sm:flex-initial">
+                <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center min-w-[110px] md:min-w-[120px] flex flex-col justify-center">
                   <span className="block text-2xl font-bold text-emerald-400">
                     {totalGlobalContributions >= 1000 
                       ? `${(totalGlobalContributions / 1000).toFixed(1)}k` 
@@ -587,7 +587,7 @@ app.get('/', async (c) => {
                   </span>
                   <span className="text-[10px] uppercase text-slate-500 font-semibold">Contribuciones</span>
                 </div>
-                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px] flex-1 sm:flex-initial">
+                <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center min-w-[100px] md:min-w-[110px] flex flex-col justify-center">
                   <span className="block text-2xl font-bold text-cyan-400">
                     {totalGlobalRepos >= 1000 
                       ? `${(totalGlobalRepos / 1000).toFixed(1)}k` 
@@ -595,7 +595,7 @@ app.get('/', async (c) => {
                   </span>
                   <span className="text-[10px] uppercase text-slate-500 font-semibold">Proyectos</span>
                 </div>
-                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px] flex-1 sm:flex-initial">
+                <div className="bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-center min-w-[100px] md:min-w-[110px] flex flex-col justify-center">
                   <span className="block text-2xl font-bold text-amber-400">
                     {totalTechnologiesCount}
                   </span>
