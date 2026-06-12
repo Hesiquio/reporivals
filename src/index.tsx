@@ -37,6 +37,8 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
   const query = `
     query($username: String!) {
       user(login: $username) {
+        name
+        avatarUrl
         contributionsCollection {
           totalCommitContributions
           totalPullRequestContributions
@@ -69,7 +71,7 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
       headers,
       body: JSON.stringify({
         query,
-        variables: { username: student.github_username },
+        variables: { username: dev.github_username },
       }),
     });
 
@@ -104,7 +106,20 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
 
         const totalContributions = calendar.totalContributions || 0;
-        await supabase.from("devs").update({ total_score: newScore, total_contributions: totalContributions }).eq("id", dev.id);
+        
+        // Auto-fill avatar and name if not already set or updated from GitHub
+        const updateData: any = { 
+          total_score: newScore, 
+          total_contributions: totalContributions 
+        };
+        if (userObj.avatarUrl) {
+          updateData.avatar_url = userObj.avatarUrl;
+        }
+        if (userObj.name) {
+          updateData.nombre = userObj.name;
+        }
+
+        await supabase.from("devs").update(updateData).eq("id", dev.id);
 
         // Evaluate badges
         const totalCommits = commits;
@@ -418,17 +433,13 @@ app.get('/', async (c) => {
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
                 <span>⚙️</span> Panel de Administración - Pre-registrar Dev
               </h3>
-              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Nombre Completo</label>
-                  <input type="text" name="nombre" required placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
-                </div>
-                <div>
+              <form method="POST" action="/admin/add-dev" className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub</label>
                   <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
                 </div>
-                <div className="flex items-end">
-                  <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10">
+                <div className="w-full sm:w-auto">
+                  <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-6 rounded-xl transition-all shadow-md shadow-emerald-500/10">
                     Registrar en Ranking
                   </button>
                 </div>
@@ -736,10 +747,9 @@ app.post('/admin/add-dev', async (c) => {
   }
 
   const body = await c.req.parseBody();
-  const nombre = body.nombre as string;
-  const github_username = (body.github_username as string).trim();
+  const github_username = (body.github_username as string || '').trim();
 
-  if (!nombre || !github_username) {
+  if (!github_username) {
     return c.text('Missing required fields', 400);
   }
 
@@ -747,7 +757,7 @@ app.post('/admin/add-dev', async (c) => {
     try {
       const { data: newDev, error } = await supabase
         .from('devs')
-        .insert({ nombre, github_username })
+        .insert({ nombre: github_username, github_username })
         .select()
         .single();
       
