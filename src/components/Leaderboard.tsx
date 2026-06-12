@@ -32,7 +32,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
           <p className="text-xs text-slate-400 mt-1">Tabla de posiciones en tiempo real según su actividad en GitHub</p>
         </div>
 
-        {/* View toggles (Contribuciones vs Puntos) */}
+        {/* View toggles (Contribuciones vs Puntos vs Concentrado) */}
         <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850 self-start sm:self-auto">
           <a
             href="?sort=contributions"
@@ -53,6 +53,16 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
             }`}
           >
             💎 Puntos
+          </a>
+          <a
+            href="?sort=all"
+            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+              activeSort === 'all'
+                ? 'bg-slate-900 text-amber-400 shadow-sm border border-slate-800'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📊 Concentrado
           </a>
         </div>
 
@@ -82,8 +92,12 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                 <th className="py-4 px-6 text-center w-16">Puesto</th>
                 <th className="py-4 px-6">Dev</th>
                 <th className="py-4 px-6 hidden md:table-cell">Insignias</th>
-                <th className="py-4 px-6 text-right w-36">Contribuciones</th>
-                <th className="py-4 px-6 text-right w-32">Puntos</th>
+                {(activeSort === 'contributions' || activeSort === 'all') && (
+                  <th className="py-4 px-6 text-right w-36">Contribuciones</th>
+                )}
+                {(activeSort === 'score' || activeSort === 'all') && (
+                  <th className="py-4 px-6 text-right w-32">Puntos</th>
+                )}
                 {isAdmin && <th className="py-4 px-6 text-center w-20">Acción</th>}
               </tr>
             </thead>
@@ -159,16 +173,20 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                         )}
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-right">
-                      <span className="text-sm font-semibold text-slate-300 font-mono">
-                        {std.total_contributions.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <span className="text-sm font-extrabold text-emerald-400 font-mono">
-                        {std.total_score.toLocaleString()} pts
-                      </span>
-                    </td>
+                    {(activeSort === 'contributions' || activeSort === 'all') && (
+                      <td className="py-4 px-6 text-right">
+                        <span className="text-sm font-semibold text-slate-300 font-mono">
+                          {std.total_contributions.toLocaleString()}
+                        </span>
+                      </td>
+                    )}
+                    {(activeSort === 'score' || activeSort === 'all') && (
+                      <td className="py-4 px-6 text-right">
+                        <span className="text-sm font-extrabold text-emerald-400 font-mono">
+                          {std.total_score.toLocaleString()} pts
+                        </span>
+                      </td>
+                    )}
                     {isAdmin && (
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-2">
