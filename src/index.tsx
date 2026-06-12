@@ -38,8 +38,14 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
       user(login: $username) {
         name
         avatarUrl
-        repositories(isFork: false, privacy: PUBLIC) {
+        repositories(isFork: false, privacy: PUBLIC, first: 15, orderBy: {field: UPDATED_AT, direction: DESC}) {
           totalCount
+          nodes {
+            primaryLanguage {
+              name
+              color
+            }
+          }
         }
         contributionsCollection {
           totalCommitContributions
@@ -130,9 +136,66 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         const totalContributions = calendar.totalContributions || 0;
         const publicRepos = userObj.repositories?.totalCount || 0;
         
+        // 1. Process languages distribution
+        const repoNodes = userObj.repositories?.nodes || [];
+        const languageCounts: Record<string, { count: number; color: string }> = {};
+        let totalValids = 0;
+        
+        repoNodes.forEach((node: any) => {
+          const lang = node.primaryLanguage;
+          if (lang && lang.name) {
+            totalValids++;
+            if (!languageCounts[lang.name]) {
+              languageCounts[lang.name] = { count: 0, color: lang.color || '#cccccc' };
+            }
+            languageCounts[lang.name].count++;
+          }
+        });
+        
+        // Convert language counts to percentages
+        const languagesList = Object.entries(languageCounts).map(([name, val]) => ({
+          name,
+          color: val.color,
+          percentage: totalValids > 0 ? Math.round((val.count / totalValids) * 100) : 0
+        })).sort((a, b) => b.percentage - a.percentage);
+
+        // 2. Compute Active Streak (días seguidos con aportaciones)
+        let activeStreak = 0;
+        if (bulkStats.length > 0) {
+          // Sort stats chronologically descending (newest first)
+          const sortedStats = [...bulkStats].sort((a, b) => b.fecha.localeCompare(a.fecha));
+          
+          const todayStr = new Date().toISOString().split('T')[0];
+          const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+          
+          const hasTodayActivity = sortedStats.find(s => s.fecha === todayStr && s.stats.commits > 0);
+          const hasYesterdayActivity = sortedStats.find(s => s.fecha === yesterdayStr && s.stats.commits > 0);
+          
+          if (hasTodayActivity || hasYesterdayActivity) {
+            // Start counting backwards
+            for (const day of sortedStats) {
+              // Ignore future days if any, start counting from today/yesterday backwards
+              if (day.fecha > todayStr) continue;
+              
+              if (day.stats.commits > 0) {
+                activeStreak++;
+              } else {
+                // If it's today and we haven't done commits yet, don't break the streak immediately
+                if (day.fecha === todayStr) continue;
+                break; // Streak is broken
+              }
+            }
+          }
+        }
+
         // Safe metadata update fallback
         const currentMetadata = (dev as any).metadata || {};
-        const updatedMetadata = { ...currentMetadata, public_repos: publicRepos };
+        const updatedMetadata = { 
+          ...currentMetadata, 
+          public_repos: publicRepos,
+          languages: languagesList,
+          current_streak: activeStreak
+        };
         
         // Auto-fill avatar and name if not already set or updated from GitHub
         const updateData: any = { 
@@ -150,11 +213,14 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         // 1. Perform safe primary update (score, contributions, metadata, name, avatar)
         await supabase.from("devs").update(updateData).eq("id", dev.id);
 
-        // 2. Perform silent update on dedicated column (which might not exist yet in DB)
+        // 2. Perform silent update on dedicated columns (which might not exist yet in DB)
         try {
-          await supabase.from("devs").update({ public_repos: publicRepos }).eq("id", dev.id);
+          await supabase.from("devs").update({ 
+            public_repos: publicRepos,
+            current_streak: activeStreak
+          }).eq("id", dev.id);
         } catch (e) {
-          // Column public_repos probably doesn't exist yet, fallback to metadata is active
+          // Fallback to metadata is active if columns are missing
         }
 
         // Evaluate badges
@@ -289,6 +355,7 @@ app.get('/', async (c) => {
         total_score: dev.total_score,
         total_contributions: dev.total_contributions || 0,
         public_repos: dev.public_repos || dev.metadata?.public_repos || 0,
+        current_streak: dev.current_streak || dev.metadata?.current_streak || 0,
         badges: badgesByDev[dev.id] || [],
       }));
     } catch (e) {
@@ -760,20 +827,60 @@ app.get('/dev/:username', async (c) => {
 
         <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
           {/* Card Perfil */}
-          <section className="bg-slate-900/40 border border-slate-850 p-8 rounded-2xl flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+          <section className="bg-slate-900/40 border border-slate-850 p-8 rounded-2xl flex flex-col md:flex-row gap-8 items-center md:items-start">
             <img src={targetDev.avatar_url} className="w-24 h-24 rounded-full border border-slate-800 ring-4 ring-emerald-500/20" alt={targetDev.nombre} />
-            <div className="text-center sm:text-left space-y-2 flex-1">
-              <h2 className="text-2xl font-black text-white">{targetDev.nombre}</h2>
-              <p className="text-slate-400 text-sm font-mono">@{targetDev.github_username}</p>
-              
-              <div className="flex flex-wrap gap-4 mt-2 justify-center sm:justify-start">
-                <span className="text-xs bg-emerald-500/15 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/10 font-mono font-bold">
-                  🔥 Contribuciones: {targetDev.total_contributions}
-                </span>
-                <span className="text-xs bg-cyan-500/15 text-cyan-400 px-3 py-1 rounded-full border border-cyan-500/10 font-mono font-bold">
-                  💎 Puntos: {targetDev.total_score} pts
-                </span>
+            <div className="space-y-4 flex-1 w-full text-center md:text-left">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black text-white">{targetDev.nombre}</h2>
+                <p className="text-slate-400 text-sm font-mono">@{targetDev.github_username}</p>
               </div>
+              
+              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                <span className="text-xs bg-emerald-500/15 text-emerald-400 px-3.5 py-1.5 rounded-xl border border-emerald-500/10 font-mono font-extrabold flex items-center gap-1">
+                  🔥 {targetDev.total_contributions} Contribuciones
+                </span>
+                <span className="text-xs bg-cyan-500/15 text-cyan-400 px-3.5 py-1.5 rounded-xl border border-cyan-500/10 font-mono font-extrabold flex items-center gap-1">
+                  💎 {targetDev.total_score} Puntos
+                </span>
+                <span className="text-xs bg-blue-500/15 text-blue-400 px-3.5 py-1.5 rounded-xl border border-blue-500/10 font-mono font-extrabold flex items-center gap-1">
+                  📁 {targetDev.public_repos || targetDev.metadata?.public_repos || 0} Repos
+                </span>
+                {(targetDev.current_streak || targetDev.metadata?.current_streak) ? (
+                  <span className="text-xs bg-amber-500/15 text-amber-400 px-3.5 py-1.5 rounded-xl border border-amber-500/10 font-mono font-extrabold flex items-center gap-1">
+                    🔥 Racha: {targetDev.current_streak || targetDev.metadata?.current_streak} días
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Languages Breakdown Visualizer */}
+              {targetDev.metadata?.languages && targetDev.metadata.languages.length > 0 ? (
+                <div className="space-y-2 pt-2 max-w-xl">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-left">Lenguajes Predominantes</h4>
+                  
+                  {/* Segmented bar */}
+                  <div className="w-full h-3 rounded-full overflow-hidden bg-slate-950 border border-slate-850 flex">
+                    {targetDev.metadata.languages.map((lang: any) => (
+                      <div 
+                        key={lang.name}
+                        style={{ width: `${lang.percentage}%`, backgroundColor: lang.color }}
+                        className="h-full first:rounded-l-full last:rounded-r-full"
+                        title={`${lang.name}: ${lang.percentage}%`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Legends */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center md:justify-start">
+                    {targetDev.metadata.languages.map((lang: any) => (
+                      <span key={lang.name} className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: lang.color }} />
+                        <span>{lang.name}</span>
+                        <span className="text-slate-500 font-mono text-[10px]">{lang.percentage}%</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </section>
 

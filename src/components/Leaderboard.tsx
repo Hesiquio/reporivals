@@ -8,6 +8,7 @@ export interface LeaderboardDev {
   total_score: number;
   total_contributions: number;
   public_repos?: number;
+  current_streak?: number;
   badges?: Array<{
     id: string;
     nombre: string;
@@ -143,6 +144,11 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{std.nombre}</span>
+                            {std.current_streak && std.current_streak > 0 ? (
+                              <span className="text-[10px] bg-amber-500/10 text-amber-400 font-extrabold px-2 py-0.5 rounded-full border border-amber-500/15 flex items-center gap-1 shadow-sm" title={`Racha de ${std.current_streak} días de contribuciones seguidos`}>
+                                <span>🔥</span> {std.current_streak}
+                              </span>
+                            ) : null}
                             {isCurrent && (
                               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
                                 Tú
