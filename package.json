@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/index.tsx",
-    "start": "bun src/index.tsx"
+    "dev": "bun run --hot server.ts",
+    "start": "bun server.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

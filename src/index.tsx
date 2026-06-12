@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { handle } from 'hono/vercel';
 import { createClient } from '@supabase/supabase-js';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { HeatmapComparator, DevWithStats } from './components/HeatmapComparator';
@@ -933,7 +932,13 @@ app.get('/auth/login', async (c) => {
   if (!supabase) {
     return c.text('Supabase is not configured', 500);
   }
-  const origin = new URL(c.req.url).origin;
+  let origin = process.env.APP_URL || '';
+  if (!origin) {
+    const proto = c.req.header('x-forwarded-proto') || 'http';
+    const host = c.req.header('x-forwarded-host') || new URL(c.req.url).host;
+    origin = `${proto}://${host}`;
+  }
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'github',
     options: {
@@ -1194,19 +1199,4 @@ app.post('/api/sync', async (c) => {
   }
 });
 
-// Serve locally using Bun if run directly (development / Render)
-if (typeof Bun !== 'undefined') {
-  const port = parseInt(process.env.PORT || '3000', 10);
-  console.log(`Hono server started on port ${port}`);
-  Bun.serve({
-    port,
-    fetch: app.fetch,
-  });
-}
-
-// Export for Vercel Serverless (Node.js Runtime)
-export const config = {
-  runtime: 'nodejs',
-};
-
-export default handle(app);
+export default app;
