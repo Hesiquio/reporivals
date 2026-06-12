@@ -1189,6 +1189,8 @@ app.get('/admin/sync-all', async (c) => {
 
   // Redirect immediately so the page does not freeze
   return c.redirect('/');
+});
+
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
 app.post('/api/sync', async (c) => {
   if (!supabase) {
@@ -1214,4 +1216,10 @@ app.post('/api/sync', async (c) => {
   }
 });
 
-export default app;
+const port = parseInt(process.env.PORT || '3000', 10);
+console.log(`[Server] Hono server started on port ${port}`);
+
+Bun.serve({
+  port,
+  fetch: app.fetch,
+});
