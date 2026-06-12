@@ -38,6 +38,9 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
       user(login: $username) {
         name
         avatarUrl
+        repositories(isFork: false, privacy: PUBLIC) {
+          totalCount
+        }
         contributionsCollection {
           totalCommitContributions
           totalPullRequestContributions
@@ -125,11 +128,13 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         const newScore = commits * POINTS_PER_COMMIT + prs * POINTS_PER_PR + issues * POINTS_PER_ISSUE;
 
         const totalContributions = calendar.totalContributions || 0;
+        const publicRepos = userObj.repositories?.totalCount || 0;
         
         // Auto-fill avatar and name if not already set or updated from GitHub
         const updateData: any = { 
           total_score: newScore, 
-          total_contributions: totalContributions 
+          total_contributions: totalContributions,
+          public_repos: publicRepos
         };
         if (userObj.avatarUrl) {
           updateData.avatar_url = userObj.avatarUrl;
@@ -271,6 +276,7 @@ app.get('/', async (c) => {
         avatar_url: dev.avatar_url,
         total_score: dev.total_score,
         total_contributions: dev.total_contributions || 0,
+        public_repos: dev.public_repos || 0,
         badges: badgesByDev[dev.id] || [],
       }));
     } catch (e) {
@@ -281,6 +287,7 @@ app.get('/', async (c) => {
   // Calculate interactive banner stats
   const totalDevsCount = leaderboardDevs.length;
   const totalGlobalContributions = leaderboardDevs.reduce((sum, d) => sum + d.total_contributions, 0);
+  const totalGlobalRepos = leaderboardDevs.reduce((sum, d) => sum + (d.public_repos || 0), 0);
 
   // Load logged-in dev's yearly stats (365 days)
   let currentDevStats: any[] = [];
@@ -441,7 +448,7 @@ app.get('/', async (c) => {
                 Compara tu actividad en GitHub con la de tus compañeros devs. Consigue insignias, supera desafíos en tiempo real y asciende en la tabla de posiciones.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[90px]">
                 <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
                 <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
@@ -453,6 +460,14 @@ app.get('/', async (c) => {
                     : totalGlobalContributions}
                 </span>
                 <span className="text-[10px] uppercase text-slate-500 font-semibold">Contribuciones</span>
+              </div>
+              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px]">
+                <span className="block text-2xl font-bold text-cyan-400">
+                  {totalGlobalRepos >= 1000 
+                    ? `${(totalGlobalRepos / 1000).toFixed(1)}k` 
+                    : totalGlobalRepos}
+                </span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold">Repositorios</span>
               </div>
             </div>
           </section>

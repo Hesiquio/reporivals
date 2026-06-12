@@ -7,6 +7,7 @@ export interface LeaderboardDev {
   avatar_url?: string;
   total_score: number;
   total_contributions: number;
+  public_repos?: number;
   badges?: Array<{
     id: string;
     nombre: string;
