@@ -557,14 +557,8 @@ app.get('/', async (c) => {
         </header>
 
         <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
-          {/* Header de Sección */}
-          <div className="border-b border-slate-900 pb-3 flex items-center gap-2">
-            <span className="text-xl">📊</span>
-            <h3 className="text-lg font-black text-white tracking-wide uppercase">Estadísticas Globales</h3>
-          </div>
-
           {/* Banner */}
-          <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-900 p-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-900 p-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
             <div className="max-w-xl">
               <h2 className="text-2xl md:text-3xl font-black text-white">
                 Plataforma Gamificada de Aprendizaje
@@ -573,32 +567,40 @@ app.get('/', async (c) => {
                 Compara tu actividad en GitHub con la de tus compañeros devs. Consigue insignias, supera desafíos en tiempo real y asciende en la tabla de posiciones.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[90px]">
-                <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
+            
+            {/* Stats section on the right */}
+            <div className="space-y-3 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 border-b border-slate-850 pb-1.5">
+                <span className="text-xs">📊</span>
+                <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400">Estadísticas Globales</span>
               </div>
-              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[120px]">
-                <span className="block text-2xl font-bold text-emerald-400">
-                  {totalGlobalContributions >= 1000 
-                    ? `${(totalGlobalContributions / 1000).toFixed(1)}k` 
-                    : totalGlobalContributions}
-                </span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Contribuciones</span>
-              </div>
-              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px]">
-                <span className="block text-2xl font-bold text-cyan-400">
-                  {totalGlobalRepos >= 1000 
-                    ? `${(totalGlobalRepos / 1000).toFixed(1)}k` 
-                    : totalGlobalRepos}
-                </span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Proyectos</span>
-              </div>
-              <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px]">
-                <span className="block text-2xl font-bold text-amber-400">
-                  {totalTechnologiesCount}
-                </span>
-                <span className="text-[10px] uppercase text-slate-500 font-semibold">Tecnologías</span>
+              <div className="flex flex-wrap gap-3">
+                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[90px] flex-1 sm:flex-initial">
+                  <span className="block text-2xl font-bold text-white">{totalDevsCount}</span>
+                  <span className="text-[10px] uppercase text-slate-500 font-semibold">Devs</span>
+                </div>
+                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[120px] flex-1 sm:flex-initial">
+                  <span className="block text-2xl font-bold text-emerald-400">
+                    {totalGlobalContributions >= 1000 
+                      ? `${(totalGlobalContributions / 1000).toFixed(1)}k` 
+                      : totalGlobalContributions}
+                  </span>
+                  <span className="text-[10px] uppercase text-slate-500 font-semibold">Contribuciones</span>
+                </div>
+                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px] flex-1 sm:flex-initial">
+                  <span className="block text-2xl font-bold text-cyan-400">
+                    {totalGlobalRepos >= 1000 
+                      ? `${(totalGlobalRepos / 1000).toFixed(1)}k` 
+                      : totalGlobalRepos}
+                  </span>
+                  <span className="text-[10px] uppercase text-slate-500 font-semibold">Proyectos</span>
+                </div>
+                <div className="bg-slate-950 border border-slate-850 px-5 py-3 rounded-xl text-center min-w-[110px] flex-1 sm:flex-initial">
+                  <span className="block text-2xl font-bold text-amber-400">
+                    {totalTechnologiesCount}
+                  </span>
+                  <span className="text-[10px] uppercase text-slate-500 font-semibold">Tecnologías</span>
+                </div>
               </div>
             </div>
           </section>
