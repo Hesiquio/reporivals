@@ -557,6 +557,12 @@ app.get('/', async (c) => {
         </header>
 
         <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+          {/* Header de Sección */}
+          <div className="border-b border-slate-900 pb-3 flex items-center gap-2">
+            <span className="text-xl">📊</span>
+            <h3 className="text-lg font-black text-white tracking-wide uppercase">Estadísticas Globales</h3>
+          </div>
+
           {/* Banner */}
           <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-900 p-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="max-w-xl">
