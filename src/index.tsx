@@ -5,6 +5,9 @@ import { HeatmapComparator, DevWithStats } from './components/HeatmapComparator'
 import { BadgeShowcase, Badge, DevBadge } from './components/BadgeShowcase';
 import { Leaderboard, LeaderboardDev } from './components/Leaderboard';
 import { DevHeatmap } from './components/DevHeatmap';
+import { PeriodLeaderboard, PeriodDevStats } from './components/PeriodLeaderboard';
+import { PeriodHeatmap } from './components/PeriodHeatmap';
+import { getPeriodById, getAvailablePeriods, getCurrentPeriod, AcademicPeriod } from './utils/periods';
 import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
@@ -519,6 +522,9 @@ app.get('/', async (c) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <a href="/periodos" className="text-xs bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-900/40 text-emerald-400 px-3 py-1.5 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm">
+              <span>📅</span> Periodos Escolares
+            </a>
             <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
               ⚔️ Duelo VS
             </a>
@@ -691,6 +697,355 @@ app.get('/', async (c) => {
   );
 });
 
+// GET Route: Renders the Academic Periods / Semester Dashboard (Docente)
+app.get('/periodos', async (c) => {
+  // Auth state
+  let currentDev: any = null;
+  const accessToken = getCookie(c, 'sb-access-token');
+
+  if (supabase && accessToken) {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+      if (user && !userError) {
+        const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+        if (dev) {
+          currentDev = dev;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to get user from token in /periodos:', e);
+    }
+  }
+
+  // Academic Period and Sort parameters
+  const periodParam = c.req.query('period');
+  const activePeriod = getPeriodById(periodParam);
+  const availablePeriods = getAvailablePeriods();
+  const sort = c.req.query('sort') || 'contributions';
+
+  // Load and aggregate devs for the selected period
+  let periodDevs: PeriodDevStats[] = [];
+  let totalSemesterCommits = 0;
+  let totalSemesterPRs = 0;
+  let totalSemesterIssues = 0;
+  let totalSemesterContributions = 0;
+  let activeDevsCount = 0;
+
+  if (supabase) {
+    try {
+      // 1. Fetch all registered devs
+      const { data: devsData } = await supabase
+        .from('devs')
+        .select('id, nombre, github_username, avatar_url');
+
+      // 2. Fetch stats for the specific period range [startDate, endDate]
+      const { data: statsData } = await supabase
+        .from('github_stats')
+        .select('dev_id, fecha, stats')
+        .gte('fecha', activePeriod.startDate)
+        .lte('fecha', activePeriod.endDate);
+
+      // 3. Aggregate daily records per dev
+      const statsByDev: Record<string, { commits: number; pull_requests: number; issues: number; stars_received: number; active_days: number }> = {};
+
+      (statsData || []).forEach((row: any) => {
+        const dId = row.dev_id;
+        if (!statsByDev[dId]) {
+          statsByDev[dId] = { commits: 0, pull_requests: 0, issues: 0, stars_received: 0, active_days: 0 };
+        }
+        const commits = row.stats?.commits || 0;
+        const prs = row.stats?.pull_requests || 0;
+        const issues = row.stats?.issues || 0;
+        const stars = row.stats?.stars_received || 0;
+
+        statsByDev[dId].commits += commits;
+        statsByDev[dId].pull_requests += prs;
+        statsByDev[dId].issues += issues;
+        statsByDev[dId].stars_received += stars;
+
+        if (commits > 0 || prs > 0 || issues > 0) {
+          statsByDev[dId].active_days += 1;
+        }
+      });
+
+      // 4. Map into period leaderboard data
+      periodDevs = (devsData || []).map((dev: any) => {
+        const agg = statsByDev[dev.id] || { commits: 0, pull_requests: 0, issues: 0, stars_received: 0, active_days: 0 };
+        const contributions = agg.commits + agg.pull_requests + agg.issues;
+        const score = agg.commits * POINTS_PER_COMMIT + agg.pull_requests * POINTS_PER_PR + agg.issues * POINTS_PER_ISSUE;
+        const hasActivity = contributions > 0;
+
+        if (hasActivity) {
+          activeDevsCount++;
+          totalSemesterCommits += agg.commits;
+          totalSemesterPRs += agg.pull_requests;
+          totalSemesterIssues += agg.issues;
+          totalSemesterContributions += contributions;
+        }
+
+        return {
+          id: dev.id,
+          nombre: dev.nombre,
+          github_username: dev.github_username,
+          avatar_url: dev.avatar_url,
+          commits: agg.commits,
+          pull_requests: agg.pull_requests,
+          issues: agg.issues,
+          stars_received: agg.stars_received,
+          total_contributions: contributions,
+          period_score: score,
+          active_days: agg.active_days,
+          has_activity: hasActivity,
+        };
+      });
+
+      // 5. Sort developers based on active parameter
+      periodDevs.sort((a, b) => {
+        // Students with activity come first
+        if (a.has_activity && !b.has_activity) return -1;
+        if (!a.has_activity && b.has_activity) return 1;
+
+        if (sort === 'score') {
+          return b.period_score - a.period_score || b.total_contributions - a.total_contributions;
+        } else if (sort === 'commits') {
+          return b.commits - a.commits || b.period_score - a.period_score;
+        }
+        return b.total_contributions - a.total_contributions || b.period_score - a.period_score;
+      });
+    } catch (e) {
+      console.error('Failed to load period stats in /periodos:', e);
+    }
+  }
+
+  const participationRate = periodDevs.length > 0
+    ? Math.round((activeDevsCount / periodDevs.length) * 100)
+    : 0;
+
+  const avgContributionsPerActive = activeDevsCount > 0
+    ? Math.round(totalSemesterContributions / activeDevsCount)
+    : 0;
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Periodos Escolares ({activePeriod.shortName}) - Repo Rivals Docente</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>{`
+          dialog::backdrop {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(4px);
+          }
+        `}</style>
+      </head>
+      <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        {/* Global Navigation Header */}
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <a href="/" className="hover:text-emerald-400 transition-colors">
+                <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
+              </a>
+              <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
+                Ingeniería en Sistemas • Control Docente
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              🏆 Ranking Global
+            </a>
+            <a href="/periodos" className="text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5">
+              <span>📅</span> Periodos Escolares
+            </a>
+            <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              ⚔️ Duelo VS
+            </a>
+            <a href="/sobre-nosotros" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Sobre Nosotros
+            </a>
+            {currentDev ? (
+              <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
+                {currentDev.avatar_url ? (
+                  <img src={currentDev.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentDev.nombre} />
+                ) : (
+                  <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
+                    {currentDev.nombre.charAt(0)}
+                  </div>
+                )}
+                <div className="text-left hidden sm:block">
+                  <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
+                </div>
+                <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                  Salir
+                </a>
+              </div>
+            ) : (
+              <a href="/auth/login" className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-lg font-bold transition-all shadow-md shadow-emerald-500/10 font-medium">
+                Iniciar con GitHub
+              </a>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+          {/* Teacher Header Banner */}
+          <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/25 border border-slate-850 p-7 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="space-y-2 max-w-xl">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-0.5 rounded-md">
+                  Panel de Evaluación Semestral
+                </span>
+                {activePeriod.isCurrent && (
+                  <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/40 border border-cyan-900/40 px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                    Periodo Activo
+                  </span>
+                )}
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                {activePeriod.name}
+              </h2>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Rango evaluado: <span className="text-slate-200 font-mono font-medium">{activePeriod.startDate}</span> al{' '}
+                <span className="text-slate-200 font-mono font-medium">{activePeriod.endDate}</span>.
+                Las aportaciones mostradas corresponden estrictamente a este ciclo académico (Agosto - Enero o Febrero - Julio).
+              </p>
+            </div>
+
+            {/* Quick Period Selector Dropdown */}
+            <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl space-y-2 w-full md:w-auto min-w-[280px]">
+              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Seleccionar Semestre Escolar
+              </label>
+              <select
+                id="periodSelectorSelect"
+                className="w-full text-xs font-semibold bg-slate-900 border border-slate-750 text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500"
+                onchange="window.location.href = '/periodos?period=' + this.value + '&sort=' + (new URLSearchParams(window.location.search).get('sort') || 'contributions');"
+              >
+                {availablePeriods.map((p) => (
+                  <option value={p.id} selected={p.id === activePeriod.id}>
+                    {p.name} {p.isCurrent ? '(Actual)' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 italic">
+                Cambia entre semestres para auditar calificaciones pasadas.
+              </p>
+            </div>
+          </section>
+
+          {/* Quick Filter Pills (Agosto - Enero / Febrero - Julio) */}
+          <section className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400 font-semibold mr-1">Periodos Recientes:</span>
+            {availablePeriods.map((p) => {
+              const isSelected = p.id === activePeriod.id;
+              return (
+                <a
+                  href={`/periodos?period=${p.id}&sort=${sort}`}
+                  className={`text-xs px-3.5 py-1.5 rounded-xl border font-bold transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-900/60 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <span>{p.type === 'ago-ene' ? '🍂' : '🌸'}</span>
+                  <span>{p.shortName}</span>
+                  {p.isCurrent && (
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+                      isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-emerald-950 text-emerald-400'
+                    }`}>
+                      Actual
+                    </span>
+                  )}
+                </a>
+              );
+            })}
+          </section>
+
+          {/* Semester Stats Summary Cards */}
+          <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
+              <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
+                Alumnos con Actividad
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-2xl font-black text-white">{activeDevsCount}</span>
+                <span className="text-xs text-slate-500">de {periodDevs.length} registrados</span>
+              </div>
+              <span className="text-[11px] text-emerald-400 font-mono mt-1 block">
+                {participationRate}% de participación del grupo
+              </span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
+              <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
+                Aportaciones del Periodo
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-2xl font-black text-emerald-400">
+                  {totalSemesterContributions.toLocaleString()}
+                </span>
+                <span className="text-xs text-slate-500">totales</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-mono mt-1 block">
+                Commits + PRs + Issues
+              </span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
+              <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
+                Commits en el Ciclo
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-2xl font-black text-cyan-400">
+                  {totalSemesterCommits.toLocaleString()}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-mono mt-1 block">
+                {totalSemesterPRs} Pull Requests • {totalSemesterIssues} Issues
+              </span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
+              <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
+                Promedio por Alumno Activo
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-2xl font-black text-amber-400">
+                  {avgContributionsPerActive}
+                </span>
+                <span className="text-xs text-slate-500">contrib/alumno</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-mono mt-1 block">
+                Métrica de regularidad docente
+              </span>
+            </div>
+          </section>
+
+          {/* Period Leaderboard Table */}
+          <section className="space-y-4">
+            <PeriodLeaderboard
+              devs={periodDevs}
+              period={activePeriod}
+              currentDevId={currentDev?.id}
+              isAdmin={currentDev?.is_admin || false}
+              activeSort={sort}
+            />
+          </section>
+        </main>
+
+        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
+          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        </footer>
+      </body>
+    </html>
+  );
+});
+
 // GET Route: Renders the About/Demo Section
 app.get('/sobre-nosotros', async (c) => {
   // Auth state
@@ -757,7 +1112,10 @@ app.get('/sobre-nosotros', async (c) => {
           </div>
           <div className="flex items-center gap-4">
             <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
-              Volver al Ranking
+              🏆 Ranking Global
+            </a>
+            <a href="/periodos" className="text-xs text-slate-400 hover:text-emerald-400 transition-colors font-medium flex items-center gap-1">
+              📅 Periodos Escolares
             </a>
             {currentDev ? (
               <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
@@ -859,17 +1217,30 @@ app.get('/dev/:username', async (c) => {
     .from('badges')
     .select('*');
 
-  // Fetch stats for the heatmap (last 365 days)
-  const oneYearAgo = new Date();
-  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
-  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+  // Period filter support for teachers
+  const selectedPeriodId = c.req.query('period');
+  const availablePeriods = getAvailablePeriods();
+  const selectedPeriod = selectedPeriodId ? getPeriodById(selectedPeriodId) : null;
 
-  const { data: statsData } = await supabase
+  // Fetch stats for the heatmap (selected period or last 365 days)
+  let statsQuery = supabase
     .from('github_stats')
     .select('fecha, stats')
     .eq('dev_id', targetDev.id)
-    .gte('fecha', oneYearAgoStr)
     .order('fecha', { ascending: true });
+
+  if (selectedPeriod) {
+    statsQuery = statsQuery
+      .gte('fecha', selectedPeriod.startDate)
+      .lte('fecha', selectedPeriod.endDate);
+  } else {
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+    const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+    statsQuery = statsQuery.gte('fecha', oneYearAgoStr);
+  }
+
+  const { data: statsData } = await statsQuery;
 
   const currentDevStats = (statsData || []).map((row) => ({
     fecha: row.fecha,
@@ -878,6 +1249,17 @@ app.get('/dev/:username', async (c) => {
     issues: row.stats?.issues || 0,
     stars_received: row.stats?.stars_received || 0,
   }));
+
+  let periodContributions = 0;
+  let periodCommits = 0;
+  let periodScore = 0;
+  if (selectedPeriod) {
+    currentDevStats.forEach((day) => {
+      periodCommits += day.commits;
+      periodContributions += day.commits + day.pull_requests + day.issues;
+      periodScore += day.commits * POINTS_PER_COMMIT + day.pull_requests * POINTS_PER_PR + day.issues * POINTS_PER_ISSUE;
+    });
+  }
 
   return c.html(
     <html>
@@ -908,7 +1290,10 @@ app.get('/dev/:username', async (c) => {
           </div>
           <div className="flex items-center gap-4">
             <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
-              Volver al Ranking
+              🏆 Ranking Global
+            </a>
+            <a href="/periodos" className="text-xs text-slate-400 hover:text-emerald-400 transition-colors font-medium flex items-center gap-1">
+              📅 Periodos Escolares
             </a>
             <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
               ⚔️ Duelo VS
@@ -990,14 +1375,57 @@ app.get('/dev/:username', async (c) => {
             </div>
           </section>
 
-          {/* Heatmap */}
-          <section>
-            <DevHeatmap
-              devName={targetDev.nombre}
-              githubUsername={targetDev.github_username}
-              stats={currentDevStats}
-              daysToDisplay={365}
-            />
+          {/* Heatmap Section with Period Filter */}
+          <section className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-2xl border border-slate-850">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold pl-1">Filtrar Actividad:</span>
+                <a
+                  href={`/dev/${targetDev.github_username}`}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all ${
+                    !selectedPeriod
+                      ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  🌐 Últimos 365 Días
+                </a>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {availablePeriods.slice(0, 4).map((p) => {
+                  const isActive = selectedPeriod?.id === p.id;
+                  return (
+                    <a
+                      href={`/dev/${targetDev.github_username}?period=${p.id}`}
+                      className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all flex items-center gap-1 ${
+                        isActive
+                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                          : 'bg-slate-950/60 border-slate-850 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>{p.type === 'ago-ene' ? '🍂' : '🌸'}</span>
+                      <span>{p.shortName}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedPeriod ? (
+              <PeriodHeatmap
+                devName={targetDev.nombre}
+                githubUsername={targetDev.github_username}
+                period={selectedPeriod}
+                stats={currentDevStats}
+              />
+            ) : (
+              <DevHeatmap
+                devName={targetDev.nombre}
+                githubUsername={targetDev.github_username}
+                stats={currentDevStats}
+                daysToDisplay={365}
+              />
+            )}
           </section>
 
           {/* Badges Showcase */}
@@ -1110,7 +1538,10 @@ app.get('/duelo-vs', async (c) => {
           </div>
           <div className="flex items-center gap-4">
             <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
-              Volver al Ranking
+              🏆 Ranking Global
+            </a>
+            <a href="/periodos" className="text-xs text-slate-400 hover:text-emerald-400 transition-colors font-medium flex items-center gap-1">
+              📅 Periodos Escolares
             </a>
           </div>
         </header>
