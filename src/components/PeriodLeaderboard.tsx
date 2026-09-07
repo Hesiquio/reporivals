@@ -148,35 +148,54 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                       {rankBadge}
                     </td>
                     <td className="py-4 px-6">
-                      <a
-                        href={`/dev/${std.github_username}`}
-                        className="flex items-center gap-3 hover:opacity-85 transition-opacity group"
-                      >
-                        {std.avatar_url ? (
-                          <img
-                            src={std.avatar_url}
-                            className="w-10 h-10 rounded-full border border-slate-800 shadow-sm"
-                            alt={std.nombre}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center font-black text-sm text-white">
-                            {std.nombre.charAt(0)}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={`/dev/${std.github_username}`}
+                          className="hover:opacity-85 transition-opacity"
+                          title="Ver perfil en Repo Rivals"
+                        >
+                          {std.avatar_url ? (
+                            <img
+                              src={std.avatar_url}
+                              className="w-10 h-10 rounded-full border border-slate-800 shadow-sm"
+                              alt={std.nombre}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center font-black text-sm text-white">
+                              {std.nombre.charAt(0)}
+                            </div>
+                          )}
+                        </a>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
+                            <a
+                              href={`/dev/${std.github_username}`}
+                              className="text-sm font-bold text-white hover:text-emerald-400 transition-colors"
+                            >
                               {std.nombre}
-                            </span>
+                            </a>
                             {isCurrent && (
                               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
                                 Tú
                               </span>
                             )}
                           </div>
-                          <span className="text-xs text-slate-400 font-mono">@{std.github_username}</span>
+                          <a
+                            href={`https://github.com/${std.github_username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-slate-400 hover:text-emerald-400 font-mono inline-flex items-center gap-1 hover:underline transition-colors group/gh mt-0.5"
+                            title={`Abrir perfil de GitHub de @${std.github_username}`}
+                          >
+                            <span>@{std.github_username}</span>
+                            <svg className="w-3 h-3 opacity-50 group-hover/gh:opacity-100 transition-opacity inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                              <polyline points="15 3 21 3 21 9"></polyline>
+                              <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                          </a>
                         </div>
-                      </a>
+                      </div>
                     </td>
 
                     {/* Activity indicator */}

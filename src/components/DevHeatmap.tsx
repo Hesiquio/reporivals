@@ -59,7 +59,17 @@ export const DevHeatmap: FC<DevHeatmapProps> = ({
             <span>🔥</span> Historial de Contribuciones
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Actividad de <span className="text-emerald-400 font-semibold">{devName}</span> (@{githubUsername}) en el último año
+            Actividad de <span className="text-emerald-400 font-semibold">{devName}</span>{' '}
+            <a
+              href={`https://github.com/${githubUsername}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-300 hover:text-emerald-400 underline decoration-slate-700 transition-colors"
+              title={`Ver perfil de GitHub de @${githubUsername}`}
+            >
+              (@{githubUsername})
+            </a>{' '}
+            en el último año
           </p>
         </div>
         <div className="flex gap-4 font-mono text-xs">

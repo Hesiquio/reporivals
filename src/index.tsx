@@ -1495,7 +1495,20 @@ app.get('/dev/:username', async (c) => {
             <div className="space-y-4 flex-1 w-full text-center md:text-left">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black text-white">{targetDev.nombre}</h2>
-                <p className="text-slate-400 text-sm font-mono">@{targetDev.github_username}</p>
+                <a
+                  href={`https://github.com/${targetDev.github_username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-emerald-400 text-sm font-mono inline-flex items-center gap-1.5 hover:underline transition-colors group/gh"
+                  title={`Abrir perfil de GitHub de @${targetDev.github_username}`}
+                >
+                  <span>@{targetDev.github_username}</span>
+                  <svg className="w-3.5 h-3.5 opacity-60 group-hover/gh:opacity-100 transition-opacity inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
               </div>
               
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">

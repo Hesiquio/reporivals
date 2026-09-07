@@ -66,7 +66,17 @@ export const PeriodHeatmap: FC<PeriodHeatmapProps> = ({
             <span>📅</span> Actividad en Semestre: <span className="text-emerald-400">{period.name}</span>
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Contribuciones de <span className="text-emerald-400 font-semibold">{devName}</span> (@{githubUsername}) durante este ciclo escolar
+            Contribuciones de <span className="text-emerald-400 font-semibold">{devName}</span>{' '}
+            <a
+              href={`https://github.com/${githubUsername}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-300 hover:text-emerald-400 underline decoration-slate-700 transition-colors"
+              title={`Ver perfil de GitHub de @${githubUsername}`}
+            >
+              (@{githubUsername})
+            </a>{' '}
+            durante este ciclo escolar
           </p>
         </div>
         <div className="flex gap-4 font-mono text-xs">
