@@ -290,25 +290,7 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
   return 0;
 }
 
-// 1. Mock Data Generator for Sandbox / Fallbacks
-const generateMockStats = (seed: number) => {
-  const stats = [];
-  const today = new Date();
-  for (let i = 119; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    stats.push({
-      fecha: d.toISOString().split("T")[0],
-      commits: Math.random() > 0.4 ? Math.floor(Math.random() * 4 * (Math.sin((i + seed) * 0.1) + 1)) : 0,
-      pull_requests: Math.random() > 0.85 ? 1 : 0,
-      issues: Math.random() > 0.9 ? 1 : 0,
-      stars_received: Math.random() > 0.95 ? Math.floor(Math.random() * 3) : 0,
-    });
-  }
-  return stats;
-};
-
-// 2. GET Route: Renders the Dashboard
+// 1. GET Route: Renders the Dashboard
 app.get('/', async (c) => {
   // Auth state
   let currentDev: any = null;
@@ -1064,31 +1046,12 @@ app.get('/sobre-nosotros', async (c) => {
     } catch (e) {}
   }
 
-  // Load static demo datasets
-  const devDataA = {
-    dev: { id: "s-1", nombre: "Carlos Mendoza", github_username: "carlosmdev", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1250 },
-    stats: generateMockStats(4),
-  };
-  const devDataB = {
-    dev: { id: "s-2", nombre: "Sofía Rojas", github_username: "sofiarojas", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80", total_score: 1480 },
-    stats: generateMockStats(9),
-  };
-  const badgesList = [
-    { id: "b-1", nombre: "Hola Mundo", descripcion: "Primera aportación en el ranking.", icon_url: "🚀", criterio_desbloqueo: "primer_commit" },
-    { id: "b-2", nombre: "Ave Nocturna", descripcion: "Commit realizado después de la medianoche.", icon_url: "🦉", criterio_desbloqueo: "ave_nocturna" },
-    { id: "b-3", nombre: "Constancia Brutal", descripcion: "Racha activa de aportaciones por 3 días seguidos.", icon_url: "🔥", criterio_desbloqueo: "racha_3_dias" },
-  ];
-  const devBadgesList = [
-    { id: "sb-1", dev_id: "s-1", badge_id: "b-1", otorgado_en: "2026-06-01T12:00:00Z" },
-    { id: "sb-2", dev_id: "s-1", badge_id: "b-3", otorgado_en: "2026-06-08T15:00:00Z" },
-  ];
-
   return c.html(
     <html>
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Sobre Repo Rivals - Demostración de Funciones</title>
+        <title>Sobre Repo Rivals - Plataforma Gamificada para Sistemas</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>{`
           dialog::backdrop {
@@ -1098,6 +1061,7 @@ app.get('/sobre-nosotros', async (c) => {
         `}</style>
       </head>
       <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        {/* Navigation Header */}
         <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🎓</span>
@@ -1106,7 +1070,7 @@ app.get('/sobre-nosotros', async (c) => {
                 <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
               </a>
               <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
-                Ingeniería en Sistemas
+                Ingeniería en Sistemas Computacionales
               </p>
             </div>
           </div>
@@ -1115,7 +1079,13 @@ app.get('/sobre-nosotros', async (c) => {
               🏆 Ranking Global
             </a>
             <a href="/periodos" className="text-xs text-slate-400 hover:text-emerald-400 transition-colors font-medium flex items-center gap-1">
-              📅 Periodos Escolares
+              <span>📅</span> Periodos Escolares
+            </a>
+            <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              ⚔️ Duelo VS
+            </a>
+            <a href="/sobre-nosotros" className="text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg font-bold">
+              Sobre Nosotros
             </a>
             {currentDev ? (
               <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
@@ -1126,7 +1096,7 @@ app.get('/sobre-nosotros', async (c) => {
                     {currentDev.nombre.charAt(0)}
                   </div>
                 )}
-                <div className="text-right hidden sm:block">
+                <div className="text-left hidden sm:block">
                   <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
                   <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
@@ -1142,33 +1112,235 @@ app.get('/sobre-nosotros', async (c) => {
           </div>
         </header>
 
-        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-10">
-          <section className="text-center space-y-3 py-6 bg-slate-900/20 border border-slate-900/80 rounded-2xl p-6">
-            <h2 className="text-3xl font-black text-white tracking-wide">Sobre Repo Rivals</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto text-sm leading-relaxed">
-              Esta sección demuestra cómo se comparan las contribuciones de GitHub y cómo funciona el gabinete interactivo de insignias del sistema.
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-12">
+          {/* Hero Section */}
+          <section className="text-center space-y-4 py-12 px-6 bg-gradient-to-b from-slate-900/50 via-slate-900/20 to-transparent border border-slate-850 rounded-3xl relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 px-3.5 py-1.5 rounded-full text-emerald-400 text-xs font-mono font-bold uppercase tracking-wider mb-2">
+              <span>🚀</span> Educación Técnica Gamificada
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight max-w-3xl mx-auto leading-tight">
+              Aprender Programación Escribiendo Código Real
+            </h2>
+            <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
+              <strong className="text-slate-200">Repo Rivals</strong> es la plataforma académica diseñada para estudiantes y docentes de <strong className="text-emerald-400">Ingeniería en Sistemas Computacionales</strong>. Transformamos la práctica del desarrollo de software conectando las asignaturas universitarias con la evidencia técnica real en <strong className="text-slate-200">GitHub</strong>.
             </p>
           </section>
 
-          {/* Static Heatmap Demo */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-bold text-white tracking-wide">🔥 Comparador de Actividad (Demostración)</h3>
-            <HeatmapComparator devA={devDataA} devB={devDataB} daysToDisplay={120} />
+          {/* 3 Pedagogical Pillars */}
+          <section className="space-y-6">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <h3 className="text-2xl font-extrabold text-white">¿Por Qué Repo Rivals?</h3>
+              <p className="text-xs text-slate-400">Tres principios fundamentales que guían el aprendizaje y la evaluación técnica.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-slate-900/40 border border-slate-850 p-6 rounded-2xl space-y-3 hover:border-slate-750 transition-colors">
+                <div className="w-12 h-12 rounded-xl bg-emerald-950/50 border border-emerald-800/40 flex items-center justify-center text-2xl">
+                  💻
+                </div>
+                <h4 className="text-lg font-bold text-white">Constancia Diaria</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  El software no se aprende estudiando horas antes del examen; se domina construyendo a diario. Repo Rivals incentiva el hábito del commit continuo y el versionado incremental frente a la procrastinación.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/40 border border-slate-850 p-6 rounded-2xl space-y-3 hover:border-slate-750 transition-colors">
+                <div className="w-12 h-12 rounded-xl bg-cyan-950/50 border border-cyan-800/40 flex items-center justify-center text-2xl">
+                  🤝
+                </div>
+                <h4 className="text-lg font-bold text-white">Cultura de Industria</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Los equipos tech profesionales trabajan con Pull Requests, Issues, revisión de pares y ramas. Fomentamos que los estudiantes adquieran estas habilidades desde el aula para graduarse con un portafolio sólido.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/40 border border-slate-850 p-6 rounded-2xl space-y-3 hover:border-slate-750 transition-colors">
+                <div className="w-12 h-12 rounded-xl bg-amber-950/50 border border-amber-800/40 flex items-center justify-center text-2xl">
+                  ⚖️
+                </div>
+                <h4 className="text-lg font-bold text-white">Evaluación Objetiva</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Los docentes cuentan con métricas auditables y transparentes basadas en aportaciones comprobables, permitiendo un seguimiento justo y personalizado de cada estudiante y cada cohorte semestral.
+                </p>
+              </div>
+            </div>
           </section>
 
-          {/* Static Badges Demo */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-bold text-white tracking-wide">🎖️ Vitrina de Insignias Interactiva (Demostración)</h3>
-            <BadgeShowcase
-              allBadges={badgesList}
-              devBadges={devBadgesList}
-              devName={devDataA.dev.nombre}
-            />
+          {/* Scoring Engine Rules */}
+          <section className="bg-slate-900/30 border border-slate-850 p-8 rounded-3xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-5">
+              <div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>💎</span> El Sistema de Puntuación
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Cómo se calculan los puntos y cómo ascienden los alumnos en el ranking.</p>
+              </div>
+              <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-3 py-1 rounded-lg self-start sm:self-auto">
+                Puntaje Automatizado
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">💻</span>
+                  <span className="text-lg font-black font-mono text-emerald-400">+10 pts</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">Por Cada Commit</h4>
+                <p className="text-xs text-slate-400">Premia el avance constante, la solución de ejercicios y el desarrollo de proyectos paso a paso.</p>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">🔀</span>
+                  <span className="text-lg font-black font-mono text-cyan-400">+20 pts</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">Pull Request (PR)</h4>
+                <p className="text-xs text-slate-400">Fomenta la colaboración en equipo, propuestas de cambio y trabajo en proyectos multi-autor.</p>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">📌</span>
+                  <span className="text-lg font-black font-mono text-amber-400">+5 pts</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">Issue Creado</h4>
+                <p className="text-xs text-slate-400">Incentiva la planeación de software, documentación de tareas pendientes y reporte de bugs.</p>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">⭐</span>
+                  <span className="text-lg font-black font-mono text-yellow-400">+15 pts</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">Star Recibida</h4>
+                <p className="text-xs text-slate-400">Reconoce el impacto y calidad de los proyectos compartidos públicamente con la comunidad.</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Academic Semester System */}
+          <section className="bg-gradient-to-r from-slate-900/60 via-slate-900/30 to-emerald-950/20 border border-slate-850 p-8 rounded-3xl space-y-6">
+            <div className="max-w-2xl space-y-2">
+              <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest bg-emerald-950/50 border border-emerald-900/40 px-2.5 py-0.5 rounded-md">
+                Modelo Docente Exclusivo
+              </span>
+              <h3 className="text-2xl font-black text-white">Evaluación por Periodos Semestrales</h3>
+              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                En el ámbito universitario, cada semestre representa un nuevo grupo y un curso distinto. Repo Rivals separa las métricas en dos grandes vistas:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🍂</span>
+                  <h4 className="text-base font-bold text-white">Semestre Agosto – Enero</h4>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Inicia el <strong className="text-slate-300">1 de agosto</strong> y finaliza el <strong className="text-slate-300">31 de enero</strong> del año siguiente. Abarca el ciclo escolar de otoño/invierno de las materias del plan de estudios.
+                </p>
+                <div className="pt-2 text-[11px] font-mono text-emerald-400">
+                  Rango: YYYY-08-01 → (YYYY+1)-01-31
+                </div>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-850 p-6 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🌸</span>
+                  <h4 className="text-base font-bold text-white">Semestre Febrero – Julio</h4>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Inicia el <strong className="text-slate-300">1 de febrero</strong> y finaliza el <strong className="text-slate-300">31 de julio</strong> del mismo año. Abarca el ciclo escolar de primavera/verano.
+                </p>
+                <div className="pt-2 text-[11px] font-mono text-emerald-400">
+                  Rango: YYYY-02-01 → YYYY-07-31
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="text-xs text-slate-300">
+                💡 <strong className="text-white">Para Docentes:</strong> En la sección <a href="/periodos" className="text-emerald-400 underline font-semibold">Periodos Escolares</a> puedes seleccionar cualquier ciclo anterior o vigente y usar el botón <strong>"📋 Copiar Concentrado"</strong> para transferir las notas directamente a tu Excel de calificaciones.
+              </div>
+              <a href="/periodos" className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap shadow-md">
+                Ir a Periodos Escolares
+              </a>
+            </div>
+          </section>
+
+          {/* FAQ Section */}
+          <section className="space-y-6">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <h3 className="text-2xl font-extrabold text-white">Preguntas Frecuentes</h3>
+              <p className="text-xs text-slate-400">Respuestas rápidas para estudiantes y profesores sobre el funcionamiento de la plataforma.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">❓</span> ¿Cómo se sincronizan mis aportaciones?
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Repo Rivals se conecta directamente a la API GraphQL oficial de GitHub. Consulta tu calendario de contribuciones oficial y actualiza automáticamente los commits, PRs e issues en la base de datos de Supabase.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">❓</span> ¿Se cuentan los repositorios privados?
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  ¡Sí! GitHub permite incluir contribuciones privadas en tu historial público. Para activarlo en tu perfil de GitHub ve a: <strong className="text-slate-300">Settings → Public profile → Contribution settings → Include private contributions</strong>.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">❓</span> ¿Qué son las rachas activas (🔥)?
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Es el conteo de días consecutivos en los que has realizado al menos una aportación válida en GitHub. Mantener la racha activa ayuda a desbloquear insignias especiales de constancia.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">❓</span> ¿Cómo se califica a los alumnos?
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  El docente puede establecer metas mínimas de commits o puntos durante el semestre escolar correspondiente, revisando tanto la posición en la tabla como la distribución del mapa de calor a lo largo de las semanas de clase.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Tech Stack Badges */}
+          <section className="text-center space-y-4 pt-6 border-t border-slate-900">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-slate-500">Pila Tecnológica de Alto Rendimiento</h4>
+            <div className="flex flex-wrap justify-center gap-3">
+              <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3.5 py-1.5 rounded-xl font-medium">
+                ⚡ <strong>Bun</strong> Runtime
+              </span>
+              <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3.5 py-1.5 rounded-xl font-medium">
+                🔥 <strong>Hono</strong> JSX SSR Engine
+              </span>
+              <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3.5 py-1.5 rounded-xl font-medium">
+                🐘 <strong>Supabase</strong> PostgreSQL + RLS
+              </span>
+              <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3.5 py-1.5 rounded-xl font-medium">
+                🎨 <strong>Tailwind CSS</strong>
+              </span>
+              <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs px-3.5 py-1.5 rounded-xl font-medium">
+                🐙 <strong>GitHub</strong> GraphQL API v4
+              </span>
+            </div>
           </section>
         </main>
 
-        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
-          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        <footer className="border-t border-slate-900 bg-slate-950 py-8 mt-12 text-center text-xs text-slate-650 space-y-2">
+          <p className="font-semibold text-slate-500">Repo Rivals • Plataforma Gamificada de Aprendizaje y Evaluación Docente</p>
+          <p>© 2026 Hecho con ❤️ para la comunidad de Ingeniería en Sistemas Computacionales.</p>
         </footer>
       </body>
     </html>
