@@ -12,6 +12,8 @@ export interface LeaderboardDev {
   generacion?: string;
   numero_control?: string;
   carrera?: string;
+  rol?: string;
+  is_admin?: boolean;
   badges?: Array<{
     id: string;
     nombre: string;
@@ -48,23 +50,31 @@ export const Leaderboard: FC<LeaderboardProps> = ({
 
         {/* View toggles (Contribuciones vs Puntos vs Concentrado) */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {/* Generation Filter Dropdown */}
-          {availableGens && availableGens.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
-              <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Gen:</span>
-              <select
-                className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
-                onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
-              >
-                <option value="">Todas las Generaciones</option>
-                {availableGens.map((g) => (
-                  <option value={g} selected={activeGen === g}>
-                    Gen {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Filter Dropdown (Generaciones / Roles) */}
+          <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
+            <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Filtrar:</span>
+            <select
+              className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+              onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
+            >
+              <option value="">Todos (Estudiantes y Docentes)</option>
+              <option value="alumnos" selected={activeGen === 'alumnos'}>
+                🎓 Solo Estudiantes
+              </option>
+              <option value="docentes" selected={activeGen === 'docentes'}>
+                👨‍🏫 Solo Docentes
+              </option>
+              {availableGens && availableGens.length > 0 && (
+                <optgroup label="Por Generación">
+                  {availableGens.map((g) => (
+                    <option value={g} selected={activeGen === g}>
+                      Gen {g}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
 
           <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
             <a
@@ -107,7 +117,15 @@ export const Leaderboard: FC<LeaderboardProps> = ({
             </a>
           )}
           <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
-            {devs.length} {activeGen ? `(Gen ${activeGen})` : 'Registrados'}
+            {devs.length} {
+              activeGen === 'alumnos'
+                ? 'Estudiantes'
+                : activeGen === 'docentes'
+                ? 'Docentes'
+                : activeGen
+                ? `(Gen ${activeGen})`
+                : 'Registrados'
+            }
           </span>
         </div>
       </div>
@@ -190,11 +208,15 @@ export const Leaderboard: FC<LeaderboardProps> = ({
                                 Tú
                               </span>
                             )}
-                            {std.generacion && (
+                            {(std.is_admin || std.rol === 'docente') ? (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30 shadow-sm flex items-center gap-1" title="Docente / Profesor">
+                                <span>👨‍🏫</span> Docente
+                              </span>
+                            ) : std.generacion ? (
                               <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
                                 🎓 Gen {std.generacion}
                               </span>
-                            )}
+                            ) : null}
                             {std.carrera && (
                               <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm ${
                                 std.carrera === 'IIAR'

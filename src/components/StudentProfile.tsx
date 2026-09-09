@@ -12,9 +12,13 @@ export interface StudentProfileProps {
     current_streak?: number;
     is_admin?: boolean;
     metadata?: {
+      rol?: 'estudiante' | 'docente' | string;
       generacion?: string;
       numero_control?: string;
       carrera?: string;
+      departamento?: string;
+      cargo?: string;
+      clave_docente?: string;
       [key: string]: any;
     };
   };
@@ -45,13 +49,45 @@ const CAREER_OPTIONS = [
   { value: 'IIAR', label: 'IIAR - Ingeniería en Inteligencia Artificial' },
 ];
 
+const DOCENTE_CAREER_OPTIONS = [
+  { value: 'ISC', label: 'ISC - Ingeniería en Sistemas Computacionales' },
+  { value: 'IIAR', label: 'IIAR - Ingeniería en Inteligencia Artificial' },
+  { value: 'Ambas (ISC e IIAR)', label: 'Ambas Carreras (ISC e IIAR)' },
+  { value: 'Tronco Común / Ciencias Básicas', label: 'Tronco Común / Ciencias Básicas' },
+];
+
+const DEPARTMENT_OPTIONS = [
+  'Departamento de Sistemas y Computación',
+  'Departamento de Ciencias Básicas',
+  'División de Estudios Profesionales',
+  'División de Estudios de Posgrado e Investigación',
+  'Departamento de Ingeniería Eléctrica y Electrónica',
+  'Departamento de Ingeniería Industrial',
+  'Dirección / Subdirección Académica',
+  'Otro Departamento Académico',
+];
+
+const DOCENTE_CARGO_OPTIONS = [
+  'Profesor de Asignatura',
+  'Profesor de Tiempo Completo (PTC)',
+  'Jefe de Departamento Académico',
+  'Coordinador de Carrera',
+  'Presidente de Academia',
+  'Investigador / Catedrático',
+  'Docente / Asesor de Proyectos',
+];
+
 export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badges = [] }) => {
+  const isDocente = Boolean(dev.is_admin || dev.metadata?.rol === 'docente');
   const currentGen = dev.metadata?.generacion || '';
   const currentNumControl = dev.metadata?.numero_control || '';
-  const rawCarrera = (dev.metadata?.carrera || '').trim().toUpperCase();
-  const currentCarrera = rawCarrera.includes('IIAR') || rawCarrera.includes('ARTIFICIAL')
-    ? 'IIAR'
-    : 'ISC';
+  const rawCarrera = (dev.metadata?.carrera || '').trim();
+  const currentCarrera = isDocente
+    ? (rawCarrera || 'ISC')
+    : (rawCarrera.toUpperCase().includes('IIAR') || rawCarrera.toUpperCase().includes('ARTIFICIAL') ? 'IIAR' : 'ISC');
+  const currentDepto = dev.metadata?.departamento || (isDocente ? 'Departamento de Sistemas y Computación' : '');
+  const currentCargo = dev.metadata?.cargo || (isDocente ? 'Profesor de Asignatura' : '');
+  const currentClaveDocente = dev.metadata?.clave_docente || '';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -63,22 +99,24 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
             <div>
               <p className="text-sm font-bold text-white">¡Cambios guardados con éxito!</p>
               <p className="text-xs text-emerald-400/90">
-                Tu información académica y generación se han actualizado. Ya se reflejan en el ranking y en los reportes semestrales del docente.
+                {isDocente
+                  ? 'Tu perfil institucional de docente y adscripción académica han sido actualizados satisfactoriamente.'
+                  : 'Tu información académica y generación se han actualizado. Ya se reflejan en el ranking y en los reportes semestrales del docente.'}
               </p>
             </div>
           </div>
           <a
-            href="/"
+            href={isDocente ? "/periodos" : "/"}
             className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
           >
-            Ver en Ranking →
+            {isDocente ? "Ver Concentrado Semestral →" : "Ver en Ranking →"}
           </a>
         </div>
       )}
 
-      {/* Main Student Card Header */}
+      {/* Main Profile Card Header */}
       <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className={`absolute top-0 right-0 w-80 h-80 ${isDocente ? 'bg-amber-500/5' : 'bg-emerald-500/5'} rounded-full blur-3xl pointer-events-none`}></div>
 
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6 relative z-10">
           {/* Avatar */}
@@ -87,15 +125,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
               <img
                 src={dev.avatar_url}
                 alt={dev.nombre}
-                className="w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 border-emerald-500/40 shadow-xl object-cover"
+                className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 ${isDocente ? 'border-amber-500/40' : 'border-emerald-500/40'} shadow-xl object-cover`}
               />
             ) : (
-              <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 border-slate-700 bg-slate-800 flex items-center justify-center font-black text-3xl text-emerald-400">
+              <div className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 border-slate-700 bg-slate-800 flex items-center justify-center font-black text-3xl ${isDocente ? 'text-amber-400' : 'text-emerald-400'}`}>
                 {dev.nombre.charAt(0)}
               </div>
             )}
             <div
-              className="absolute -bottom-1 -right-1 bg-emerald-500 text-slate-950 p-1 rounded-lg shadow-md"
+              className={`absolute -bottom-1 -right-1 ${isDocente ? 'bg-amber-500' : 'bg-emerald-500'} text-slate-950 p-1 rounded-lg shadow-md`}
               title="Cuenta de GitHub Verificada"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -108,12 +146,16 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
           <div className="flex-1 text-center md:text-left space-y-2">
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
               <h2 className="text-2xl font-black text-white">{dev.nombre}</h2>
-              {dev.is_admin && (
-                <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Docente / Admin
+              {isDocente ? (
+                <span className="text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                  <span>👨‍🏫</span> Docente / Evaluador
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  🎓 Estudiante
                 </span>
               )}
-              {currentGen && (
+              {!isDocente && currentGen && (
                 <span className="text-[11px] font-mono font-bold bg-cyan-950/50 text-cyan-400 border border-cyan-800/40 px-2 py-0.5 rounded-full">
                   🎓 Gen {currentGen}
                 </span>
@@ -142,10 +184,25 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded border border-slate-700">Verificado</span>
               </a>
 
-              {currentNumControl && (
-                <span className="text-slate-400 font-mono">
-                  Control: <strong className="text-slate-200">{currentNumControl}</strong>
-                </span>
+              {isDocente ? (
+                <>
+                  {currentDepto && (
+                    <span className="text-slate-400 text-xs">
+                      🏛️ <strong className="text-slate-200">{currentDepto}</strong>
+                    </span>
+                  )}
+                  {currentCargo && (
+                    <span className="text-slate-400 text-xs">
+                      💼 <strong className="text-slate-200">{currentCargo}</strong>
+                    </span>
+                  )}
+                </>
+              ) : (
+                currentNumControl && (
+                  <span className="text-slate-400 font-mono">
+                    Control: <strong className="text-slate-200">{currentNumControl}</strong>
+                  </span>
+                )
               )}
             </div>
 
@@ -168,6 +225,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
 
           {/* Secondary Actions */}
           <div className="flex flex-col gap-2 w-full md:w-auto">
+            {isDocente && (
+              <a
+                href="/periodos"
+                className="text-xs bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 px-4 py-2.5 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-2 shadow-sm"
+                title="Ir al Concentrado Semestral de Calificaciones"
+              >
+                <span>📅</span> Concentrado Semestral
+              </a>
+            )}
             <a
               href="/auth/sync-profile"
               className="text-xs bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-900/40 hover:border-emerald-800/50 text-emerald-400 px-4 py-2.5 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-2 shadow-sm shadow-emerald-950/20"
@@ -191,30 +257,58 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
           <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-6 md:p-8 space-y-6 shadow-xl">
             <div className="border-b border-slate-850 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>📝</span> Datos de Estudiante
+                <span>{isDocente ? '👨‍🏫' : '📝'}</span>{' '}
+                {isDocente ? 'Datos del Docente / Catedrático' : 'Datos de Estudiante'}
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Completa tu información institucional. Estos datos permiten a tu docente identificarte en las listas de evaluación y agruparte con tus compañeros de semestre.
+                {isDocente
+                  ? 'Información institucional como docente del Tecnológico. Estos datos te identifican como profesor o evaluador de la materia y te diferencian de las listas de alumnos a calificar.'
+                  : 'Completa tu información institucional. Estos datos permiten a tu docente identificarte en las listas de evaluación y agruparte con tus compañeros de semestre.'}
               </p>
             </div>
 
             <form method="POST" action="/mi-perfil" className="space-y-5">
-              {/* Nombre Completo */}
+              <input type="hidden" name="rol" value={isDocente ? 'docente' : 'estudiante'} />
+
+              {/* Nombre Completo Oficial with Auto-Capitalization & Formatting Actions */}
               <div className="space-y-1.5">
-                <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
-                  Nombre Completo Oficial <span className="text-emerald-400">*</span>
-                </label>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <label htmlFor="nombreInput" className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                    Nombre Completo Oficial <span className="text-emerald-400">*</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      id="btnCapitalize"
+                      className="text-[11px] font-semibold bg-slate-800 hover:bg-slate-750 text-emerald-400 px-2.5 py-1 rounded-lg border border-slate-700 transition-colors shadow-sm cursor-pointer"
+                      title="Formatear automáticamente en Nombre Propio (Ej. Carlos Mendoza Domínguez)"
+                    >
+                      Aa Capitalizar
+                    </button>
+                    <button
+                      type="button"
+                      id="btnUppercase"
+                      className="text-[11px] font-semibold bg-slate-800 hover:bg-slate-750 text-cyan-400 px-2.5 py-1 rounded-lg border border-slate-700 transition-colors shadow-sm cursor-pointer"
+                      title="Convertir a MAYÚSCULAS COMPLETAS (Ej. CARLOS MENDOZA DOMÍNGUEZ)"
+                    >
+                      AA MAYÚSCULAS
+                    </button>
+                  </div>
+                </div>
+
                 <input
                   type="text"
+                  id="nombreInput"
                   name="nombre"
                   required
                   defaultValue={dev.nombre}
-                  placeholder="Ej. Carlos Mendoza Domínguez"
+                  placeholder={isDocente ? "Ej. Hesiquio Zárate Olvera" : "Ej. Carlos Mendoza Domínguez"}
                   className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
                 />
-                <p className="text-[11px] text-slate-500">
-                  Tal como aparece en las actas de calificación institucional del Tecnológico.
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-1">
+                  <span>Tal como aparece en las actas de calificación institucional del Tecnológico.</span>
+                  <span className="text-emerald-400/90 font-medium">✨ Se auto-capitaliza al salir del campo</span>
+                </div>
               </div>
 
               {/* GitHub Handle (Read-only) */}
@@ -242,71 +336,171 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
                 </p>
               </div>
 
-              {/* Two columns: Generación + No. Control */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Generación (Año de Ingreso) */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
-                    Generación (Año de Ingreso) <span className="text-emerald-400">*</span>
-                  </label>
-                  <select
-                    name="generacion"
-                    defaultValue={currentGen}
-                    className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer"
-                  >
-                    <option value="">Selecciona tu Generación...</option>
-                    {GENERATION_OPTIONS.map((year) => (
-                      <option key={year} value={year}>
-                        Generación {year} (Ingreso {year})
-                      </option>
-                    ))}
-                    {currentGen && !GENERATION_OPTIONS.includes(currentGen) && (
-                      <option value={currentGen}>Generación {currentGen}</option>
-                    )}
-                  </select>
-                  <p className="text-[11px] text-slate-500">
-                    Año en el que ingresaste al Instituto Tecnológico.
-                  </p>
-                </div>
+              {/* Conditional Fields: Docente vs Estudiante */}
+              {isDocente ? (
+                <>
+                  {/* Two columns: Departamento + Cargo */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Departamento Académico */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Departamento Académico <span className="text-amber-400">*</span>
+                      </label>
+                      <select
+                        name="departamento"
+                        defaultValue={currentDepto}
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-medium cursor-pointer"
+                      >
+                        {DEPARTMENT_OPTIONS.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                        {currentDepto && !DEPARTMENT_OPTIONS.includes(currentDepto) && (
+                          <option value={currentDepto}>{currentDepto}</option>
+                        )}
+                      </select>
+                      <p className="text-[11px] text-slate-500">
+                        Departamento al que estás adscrito en el Instituto Tecnológico.
+                      </p>
+                    </div>
 
-                {/* Número de Control */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
-                    Número de Control (Matrícula)
-                  </label>
-                  <input
-                    type="text"
-                    name="numero_control"
-                    defaultValue={currentNumControl}
-                    placeholder="Ej. 22080045"
-                    className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-mono font-medium"
-                  />
-                  <p className="text-[11px] text-slate-500">
-                    Facilita al docente registrar tus puntos en el sistema escolar.
-                  </p>
-                </div>
-              </div>
+                    {/* Cargo o Nombramiento */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Cargo o Nombramiento <span className="text-amber-400">*</span>
+                      </label>
+                      <select
+                        name="cargo"
+                        defaultValue={currentCargo}
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-medium cursor-pointer"
+                      >
+                        {DOCENTE_CARGO_OPTIONS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                        {currentCargo && !DOCENTE_CARGO_OPTIONS.includes(currentCargo) && (
+                          <option value={currentCargo}>{currentCargo}</option>
+                        )}
+                      </select>
+                      <p className="text-[11px] text-slate-500">
+                        Tu rol dentro de la plantilla académica del Tecnológico.
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Carrera Selector */}
-              <div className="space-y-1.5">
-                <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
-                  Carrera <span className="text-emerald-400">*</span>
-                </label>
-                <select
-                  name="carrera"
-                  defaultValue={currentCarrera}
-                  className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer"
-                >
-                  {CAREER_OPTIONS.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-500">
-                  Selecciona tu programa educativo oficial (ISC o IIAR) para evitar errores de captura en las evaluaciones docentes.
-                </p>
-              </div>
+                  {/* Two columns: Carrera que Imparte + Clave Docente */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Carrera que Imparte */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Carrera(s) que Imparte / Coordina <span className="text-amber-400">*</span>
+                      </label>
+                      <select
+                        name="carrera"
+                        defaultValue={currentCarrera}
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-medium cursor-pointer"
+                      >
+                        {DOCENTE_CAREER_OPTIONS.map((c) => (
+                          <option key={c.value} value={c.value}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-slate-500">
+                        Programas de estudio en los que impartes materias o proyectos.
+                      </p>
+                    </div>
+
+                    {/* Clave Docente o RFC */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Clave Docente / RFC (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        name="clave_docente"
+                        defaultValue={currentClaveDocente}
+                        placeholder="Ej. ZAOH850212 o No. Empleado"
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono font-medium"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Dato interno para membretes o exportación de actas docentes.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Two columns: Generación + No. Control */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Generación (Año de Ingreso) */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Generación (Año de Ingreso) <span className="text-emerald-400">*</span>
+                      </label>
+                      <select
+                        name="generacion"
+                        defaultValue={currentGen}
+                        required
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer"
+                      >
+                        <option value="">Selecciona tu Generación...</option>
+                        {GENERATION_OPTIONS.map((year) => (
+                          <option key={year} value={year}>
+                            Generación {year} (Ingreso {year})
+                          </option>
+                        ))}
+                        {currentGen && !GENERATION_OPTIONS.includes(currentGen) && (
+                          <option value={currentGen}>Generación {currentGen}</option>
+                        )}
+                      </select>
+                      <p className="text-[11px] text-slate-500">
+                        Año en el que ingresaste al Instituto Tecnológico.
+                      </p>
+                    </div>
+
+                    {/* Número de Control */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                        Número de Control (Matrícula)
+                      </label>
+                      <input
+                        type="text"
+                        name="numero_control"
+                        defaultValue={currentNumControl}
+                        placeholder="Ej. 22080045"
+                        className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-mono font-medium"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Facilita al docente registrar tus puntos en el sistema escolar.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Carrera Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
+                      Carrera <span className="text-emerald-400">*</span>
+                    </label>
+                    <select
+                      name="carrera"
+                      defaultValue={currentCarrera}
+                      className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer"
+                    >
+                      {CAREER_OPTIONS.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-slate-500">
+                      Selecciona tu programa educativo oficial (ISC o IIAR) para evitar errores de captura en las evaluaciones docentes.
+                    </p>
+                  </div>
+                </>
+              )}
 
               {/* Submit Button */}
               <div className="pt-4 border-t border-slate-850 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -315,9 +509,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
                 </span>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-8 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/15 flex items-center justify-center gap-2"
+                  className={`w-full sm:w-auto text-sm ${
+                    isDocente
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/15'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/15'
+                  } font-extrabold px-8 py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer`}
                 >
-                  <span>💾</span> Guardar Información
+                  <span>💾</span> {isDocente ? 'Guardar Datos de Docente' : 'Guardar Información'}
                 </button>
               </div>
             </form>
@@ -326,6 +524,64 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
 
         {/* Sidebar Info & FAQ */}
         <div className="space-y-6">
+          {isDocente ? (
+            /* Teacher Portal Card */
+            <div className="bg-gradient-to-br from-slate-900/80 to-amber-950/20 border border-amber-500/30 rounded-3xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
+                <span>👨‍🏫</span> Panel de Gestión Docente
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Como docente de Repo Rivals, tu perfil está diferenciado del alumnado:
+              </p>
+              <ul className="text-xs text-slate-400 space-y-2.5 list-disc list-inside">
+                <li>
+                  <strong className="text-slate-200">No alteras el ranking estudiantil:</strong> Tus contribuciones se destacan con insignia docente y no desplazan el lugar de tus alumnos.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Reportes limpios:</strong> En el concentrado semestral tus métricas no alteran los promedios ni la tasa de aprobación de las materias.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Copiar para Actas:</strong> Puedes exportar el concentrado del semestre directamente a Excel con un clic.
+                </li>
+              </ul>
+              <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
+                <a
+                  href="/periodos"
+                  className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold px-3 py-2 rounded-xl border border-amber-500/40 text-center transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>📋</span> Concentrado de Calificaciones →
+                </a>
+                <a
+                  href="/"
+                  className="text-xs bg-slate-950 hover:bg-slate-900 text-slate-300 hover:text-white font-medium px-3 py-2 rounded-xl border border-slate-800 text-center transition-all"
+                >
+                  Ver Ranking Global de Estudiantes
+                </a>
+              </div>
+            </div>
+          ) : (
+            /* Academic Evaluation Explanatory Card for Students */
+            <div className="bg-gradient-to-br from-slate-900/60 to-cyan-950/20 border border-slate-850 rounded-3xl p-6 space-y-3">
+              <div className="flex items-center gap-2 text-cyan-400 text-sm font-bold">
+                <span>🎓</span> Para qué sirve tu Generación
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                En Repo Rivals, los docentes organizan los rankings por semestre (Agosto - Enero y Febrero - Julio) y filtran por <strong className="text-slate-200">Generación</strong> para evaluar a cada grupo de forma equitativa.
+              </p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Al indicar tu año de ingreso y número de control, te aseguras de que tus aportaciones cuenten en la rúbrica de tu materia.
+              </p>
+              <div className="pt-2">
+                <a
+                  href="/periodos"
+                  className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold inline-flex items-center gap-1 hover:underline"
+                >
+                  Explorar periodos escolares →
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Security & Validation Note */}
           <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-6 space-y-4">
             <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
@@ -341,32 +597,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
             </ul>
           </div>
 
-          {/* Academic Evaluation Explanatory Card */}
-          <div className="bg-gradient-to-br from-slate-900/60 to-cyan-950/20 border border-slate-850 rounded-3xl p-6 space-y-3">
-            <div className="flex items-center gap-2 text-cyan-400 text-sm font-bold">
-              <span>🎓</span> Para qué sirve tu Generación
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              En Repo Rivals, los docentes organizan los rankings por semestre (Agosto - Enero y Febrero - Julio) y filtran por <strong className="text-slate-200">Generación</strong> para evaluar a cada grupo de forma equitativa.
-            </p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Al indicar tu año de ingreso y número de control, te aseguras de que tus aportaciones cuenten en la rúbrica de tu materia.
-            </p>
-            <div className="pt-2">
-              <a
-                href="/periodos"
-                className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold inline-flex items-center gap-1 hover:underline"
-              >
-                Explorar periodos escolares →
-              </a>
-            </div>
-          </div>
-
           {/* Badges Preview */}
           {badges.length > 0 && (
             <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-6 space-y-3">
               <div className="text-xs uppercase font-bold text-slate-400 tracking-wider flex items-center justify-between">
-                <span>Tus Insignias ({badges.length})</span>
+                <span>Insignias Obtenidas ({badges.length})</span>
                 <a href="/#insignias" className="text-emerald-400 hover:underline">Ver todas</a>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
@@ -385,6 +620,66 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
           )}
         </div>
       </div>
+
+      {/* Client-side script for Auto-Capitalization and Case formatting */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function() {
+              const input = document.getElementById('nombreInput');
+              const btnCap = document.getElementById('btnCapitalize');
+              const btnUpper = document.getElementById('btnUppercase');
+              const particles = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e', 'san']);
+
+              function toTitleCase(str) {
+                const trimmed = str.trim().replace(/\\s+/g, ' ');
+                if (!trimmed) return '';
+                return trimmed.split(' ').map(function(word, index) {
+                  const lower = word.toLowerCase();
+                  if (index > 0 && particles.has(lower)) {
+                    return lower;
+                  }
+                  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                }).join(' ');
+              }
+
+              function toUpper(str) {
+                return str.trim().replace(/\\s+/g, ' ').toUpperCase();
+              }
+
+              if (input) {
+                // Auto-capitalize on blur if user typed in lowercase
+                input.addEventListener('blur', function() {
+                  const val = input.value.trim();
+                  if (val && val === val.toLowerCase()) {
+                    input.value = toTitleCase(val);
+                  }
+                });
+
+                if (btnCap) {
+                  btnCap.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (input.value) {
+                      input.value = toTitleCase(input.value);
+                      input.focus();
+                    }
+                  });
+                }
+
+                if (btnUpper) {
+                  btnUpper.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (input.value) {
+                      input.value = toUpper(input.value);
+                      input.focus();
+                    }
+                  });
+                }
+              }
+            })();
+          `,
+        }}
+      />
     </div>
   );
 };

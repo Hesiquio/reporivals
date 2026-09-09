@@ -17,6 +17,8 @@ export interface PeriodDevStats {
   generacion?: string;
   numero_control?: string;
   carrera?: string;
+  rol?: string;
+  is_admin?: boolean;
 }
 
 interface PeriodLeaderboardProps {
@@ -64,23 +66,31 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
 
         {/* View toggles & Teacher Action */}
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
-          {/* Generation Filter */}
-          {availableGens && availableGens.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
-              <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Gen:</span>
-              <select
-                className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
-                onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
-              >
-                <option value="">Todas las Generaciones</option>
-                {availableGens.map((g) => (
-                  <option value={g} selected={activeGen === g}>
-                    Gen {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Generation & Role Filter */}
+          <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
+            <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Filtrar:</span>
+            <select
+              className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+              onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
+            >
+              <option value="">Todos (Alumnos y Docentes)</option>
+              <option value="alumnos" selected={activeGen === 'alumnos'}>
+                🎓 Solo Alumnos
+              </option>
+              <option value="docentes" selected={activeGen === 'docentes'}>
+                👨‍🏫 Solo Docentes
+              </option>
+              {availableGens && availableGens.length > 0 && (
+                <optgroup label="Por Generación">
+                  {availableGens.map((g) => (
+                    <option value={g} selected={activeGen === g}>
+                      Gen {g}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
 
           <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
             <a
@@ -147,78 +157,94 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
-              {devs.map((std, index) => {
-                const isCurrent = std.id === currentDevId;
-                const rank = index + 1;
+              {(() => {
+                let studentRankCounter = 0;
+                return devs.map((std) => {
+                  const isCurrent = std.id === currentDevId;
+                  const isTeacher = Boolean(std.is_admin || std.rol === 'docente');
 
-                // Rank designators
-                let rankBadge = <span className="text-slate-400 font-mono text-sm">{rank}</span>;
-                let rowHighlight = "hover:bg-slate-900/20 transition-colors";
-                if (std.has_activity) {
-                  if (rank === 1) rankBadge = <span className="text-xl">🥇</span>;
-                  else if (rank === 2) rankBadge = <span className="text-xl">🥈</span>;
-                  else if (rank === 3) rankBadge = <span className="text-xl">🥉</span>;
-                } else {
-                  rankBadge = <span className="text-slate-600 font-mono text-xs">-</span>;
-                  rowHighlight = "opacity-60 hover:opacity-90 hover:bg-slate-900/10 transition-all";
-                }
+                  // Rank designators
+                  let rankBadge;
+                  let rowHighlight = "hover:bg-slate-900/20 transition-colors";
+                  if (isTeacher) {
+                    rankBadge = (
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30 whitespace-nowrap shadow-sm">
+                        👨‍🏫 Docente
+                      </span>
+                    );
+                    rowHighlight = "bg-amber-950/10 hover:bg-amber-950/20 border-l-2 border-amber-500/40 transition-colors";
+                  } else if (std.has_activity) {
+                    studentRankCounter++;
+                    const rank = studentRankCounter;
+                    if (rank === 1) rankBadge = <span className="text-xl">🥇</span>;
+                    else if (rank === 2) rankBadge = <span className="text-xl">🥈</span>;
+                    else if (rank === 3) rankBadge = <span className="text-xl">🥉</span>;
+                    else rankBadge = <span className="text-slate-400 font-mono text-sm">{rank}</span>;
+                  } else {
+                    rankBadge = <span className="text-slate-600 font-mono text-xs">-</span>;
+                    rowHighlight = "opacity-60 hover:opacity-90 hover:bg-slate-900/10 transition-all";
+                  }
 
-                if (isCurrent) {
-                  rowHighlight = "bg-emerald-950/10 hover:bg-emerald-950/20 border-l-2 border-emerald-500 transition-colors";
-                }
+                  if (isCurrent && !isTeacher) {
+                    rowHighlight = "bg-emerald-950/10 hover:bg-emerald-950/20 border-l-2 border-emerald-500 transition-colors";
+                  }
 
-                return (
-                  <tr key={std.id} className={rowHighlight}>
-                    <td className="py-4 px-6 text-center font-bold">
-                      {rankBadge}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <a
-                          href={`/dev/${std.github_username}`}
-                          className="hover:opacity-85 transition-opacity"
-                          title="Ver perfil en Repo Rivals"
-                        >
-                          {std.avatar_url ? (
-                            <img
-                              src={std.avatar_url}
-                              className="w-10 h-10 rounded-full border border-slate-800 shadow-sm"
-                              alt={std.nombre}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center font-black text-sm text-white">
-                              {std.nombre.charAt(0)}
+                  return (
+                    <tr key={std.id} className={rowHighlight}>
+                      <td className="py-4 px-6 text-center font-bold">
+                        {rankBadge}
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-3">
+                          <a
+                            href={`/dev/${std.github_username}`}
+                            className="hover:opacity-85 transition-opacity"
+                            title="Ver perfil en Repo Rivals"
+                          >
+                            {std.avatar_url ? (
+                              <img
+                                src={std.avatar_url}
+                                className="w-10 h-10 rounded-full border border-slate-800 shadow-sm"
+                                alt={std.nombre}
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center font-black text-sm text-white">
+                                {std.nombre.charAt(0)}
+                              </div>
+                            )}
+                          </a>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`/dev/${std.github_username}`}
+                                className="text-sm font-bold text-white hover:text-emerald-400 transition-colors"
+                              >
+                                {std.nombre}
+                              </a>
+                              {isCurrent && (
+                                <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
+                                  Tú
+                                </span>
+                              )}
+                              {isTeacher ? (
+                                <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30 shadow-sm flex items-center gap-1" title="Docente / Evaluador">
+                                  <span>👨‍🏫</span> Docente
+                                </span>
+                              ) : std.generacion ? (
+                                <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
+                                  🎓 Gen {std.generacion}
+                                </span>
+                              ) : null}
+                              {std.carrera && (
+                                <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm ${
+                                  std.carrera === 'IIAR'
+                                    ? 'bg-purple-950/60 text-purple-400 border-purple-800/40'
+                                    : 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
+                                }`} title={std.carrera === 'IIAR' ? 'Ingeniería en Inteligencia Artificial' : 'Ingeniería en Sistemas Computacionales'}>
+                                  {std.carrera}
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </a>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/dev/${std.github_username}`}
-                              className="text-sm font-bold text-white hover:text-emerald-400 transition-colors"
-                            >
-                              {std.nombre}
-                            </a>
-                            {isCurrent && (
-                              <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
-                                Tú
-                              </span>
-                            )}
-                            {std.generacion && (
-                              <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
-                                🎓 Gen {std.generacion}
-                              </span>
-                            )}
-                            {std.carrera && (
-                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm ${
-                                std.carrera === 'IIAR'
-                                  ? 'bg-purple-950/60 text-purple-400 border-purple-800/40'
-                                  : 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
-                              }`} title={std.carrera === 'IIAR' ? 'Ingeniería en Inteligencia Artificial' : 'Ingeniería en Sistemas Computacionales'}>
-                                {std.carrera}
-                              </span>
-                            )}
-                          </div>
                           <a
                             href={`https://github.com/${std.github_username}`}
                             target="_blank"
@@ -281,47 +307,71 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              });
+            })()}
             </tbody>
           </table>
         </div>
       )}
 
       {/* Footer bar */}
-      <div className="px-6 py-4 bg-slate-950/40 border-t border-slate-850 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-        <span>
-          Resumen docente: <strong className="text-slate-300">{activeDevsCount}</strong> de{' '}
-          <strong className="text-slate-300">{devs.length}</strong> alumnos tuvieron aportaciones en este ciclo escolar.
-        </span>
-        <span className="text-[11px] font-mono text-slate-600">
-          Puntos: 10/commit • 20/PR • 5/issue
-        </span>
-      </div>
+      {(() => {
+        const studentDevs = devs.filter((d) => !d.is_admin && d.rol !== 'docente');
+        const activeStudentsCount = studentDevs.filter((d) => d.has_activity).length;
+        const teachersCount = devs.length - studentDevs.length;
+        return (
+          <div className="px-6 py-4 bg-slate-950/40 border-t border-slate-850 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <span>
+              Resumen docente: <strong className="text-slate-300">{activeStudentsCount}</strong> de{' '}
+              <strong className="text-slate-300">{studentDevs.length}</strong> alumnos activos en este ciclo escolar.
+              {teachersCount > 0 && (
+                <span className="text-amber-400/90 ml-1 font-medium">
+                  ({teachersCount} docente{teachersCount > 1 ? 's' : ''} registrado{teachersCount > 1 ? 's' : ''})
+                </span>
+              )}
+            </span>
+            <span className="text-[11px] font-mono text-slate-600">
+              Puntos: 10/commit • 20/PR • 5/issue
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Client-side script for CSV copy */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
             document.getElementById('exportCsvBtn')?.addEventListener('click', function() {
+              let studentCounter = 0;
               const rows = [
-                ['Puesto', 'Nombre', 'Usuario GitHub', 'Carrera', 'Generación', 'No. Control', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
+                ['Puesto', 'Rol', 'Nombre', 'Usuario GitHub', 'Carrera', 'Generación', 'No. Control', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
                 ${JSON.stringify(
-                  devs.map((d, i) => [
-                    d.has_activity ? i + 1 : 'N/A',
-                    d.nombre,
-                    d.github_username,
-                    d.carrera || 'ISC',
-                    d.generacion || 'N/A',
-                    d.numero_control || 'N/A',
-                    d.has_activity ? 'Activo' : 'Sin actividad',
-                    d.active_days,
-                    d.commits,
-                    d.pull_requests,
-                    d.issues,
-                    d.total_contributions,
-                    d.period_score,
-                  ])
-                )}.map(r => r.join('\\t')).join('\\n')
+                  devs.map((d) => {
+                    const isDocente = Boolean(d.is_admin || d.rol === 'docente');
+                    return [
+                      isDocente ? 'Docente' : (d.has_activity ? '__RANK__' : 'Sin actividad'),
+                      isDocente ? 'Docente' : 'Estudiante',
+                      d.nombre,
+                      d.github_username,
+                      d.carrera || 'ISC',
+                      d.generacion || (isDocente ? 'Docente' : 'N/A'),
+                      d.numero_control || 'N/A',
+                      d.has_activity ? 'Activo' : 'Sin actividad',
+                      d.active_days,
+                      d.commits,
+                      d.pull_requests,
+                      d.issues,
+                      d.total_contributions,
+                      d.period_score,
+                    ];
+                  })
+                )}.map(function(r) {
+                  if (r[0] === '__RANK__') {
+                    studentCounter++;
+                    r[0] = studentCounter;
+                  }
+                  return r.join('\\t');
+                }).join('\\n')
               ];
               const tsvContent = rows.join('\\n');
               navigator.clipboard.writeText(tsvContent).then(function() {

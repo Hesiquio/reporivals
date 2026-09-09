@@ -367,11 +367,19 @@ app.get('/', async (c) => {
         generacion: dev.metadata?.generacion || undefined,
         numero_control: dev.metadata?.numero_control || undefined,
         carrera: dev.metadata?.carrera || 'ISC',
+        rol: dev.metadata?.rol || (dev.is_admin ? 'docente' : 'estudiante'),
+        is_admin: dev.is_admin || false,
       }));
 
-      // Filter by generation if specified
+      // Filter by generation or role if specified
       if (genParam) {
-        leaderboardDevs = leaderboardDevs.filter((d: any) => d.generacion === genParam);
+        if (genParam === 'alumnos') {
+          leaderboardDevs = leaderboardDevs.filter((d: any) => !d.is_admin && d.rol !== 'docente');
+        } else if (genParam === 'docentes') {
+          leaderboardDevs = leaderboardDevs.filter((d: any) => d.is_admin || d.rol === 'docente');
+        } else {
+          leaderboardDevs = leaderboardDevs.filter((d: any) => d.generacion === genParam);
+        }
       }
     } catch (e) {
       console.error("Failed to load leaderboard data:", e);
@@ -682,9 +690,9 @@ app.get('/', async (c) => {
           {currentDev?.is_admin && (
             <section className="bg-slate-900/35 border border-slate-850 p-6 rounded-2xl space-y-4">
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
-                <span>⚙️</span> Panel de Administración - Pre-registrar Estudiante
+                <span>⚙️</span> Panel de Administración - Pre-registrar Estudiante o Docente
               </h3>
-              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub *</label>
                   <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
@@ -692,6 +700,13 @@ app.get('/', async (c) => {
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Nombre Completo</label>
                   <input type="text" name="nombre" placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div className="w-full">
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Rol *</label>
+                  <select name="rol" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500/50 font-semibold cursor-pointer">
+                    <option value="estudiante">🎓 Estudiante</option>
+                    <option value="docente">👨‍🏫 Docente</option>
+                  </select>
                 </div>
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Carrera *</label>
@@ -702,11 +717,11 @@ app.get('/', async (c) => {
                 </div>
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Generación (Año)</label>
-                  <input type="text" name="generacion" placeholder="Ej. 2023" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
+                  <input type="text" name="generacion" placeholder="Ej. 2023 (Alumnos)" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
                 </div>
                 <div className="w-full">
                   <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-4 rounded-xl transition-all shadow-md shadow-emerald-500/10">
-                    Pre-registrar Alumno
+                    Pre-registrar
                   </button>
                 </div>
               </form>
@@ -772,10 +787,10 @@ app.get('/periodos', async (c) => {
 
   if (supabase) {
     try {
-      // 1. Fetch all registered devs
+      // 1. Fetch all registered devs (including is_admin)
       const { data: devsData } = await supabase
         .from('devs')
-        .select('id, nombre, github_username, avatar_url, metadata');
+        .select('id, nombre, github_username, avatar_url, metadata, is_admin');
 
       // Extract unique generations from student metadata
       availableGens = Array.from(
@@ -839,16 +854,25 @@ app.get('/periodos', async (c) => {
           generacion: dev.metadata?.generacion || undefined,
           numero_control: dev.metadata?.numero_control || undefined,
           carrera: dev.metadata?.carrera || 'ISC',
+          rol: dev.metadata?.rol || (dev.is_admin ? 'docente' : 'estudiante'),
+          is_admin: dev.is_admin || false,
         };
       });
 
-      // 5. Filter by generation if requested
+      // 5. Filter by generation or role if requested
       if (genParam) {
-        periodDevs = periodDevs.filter((d) => d.generacion === genParam);
+        if (genParam === 'alumnos') {
+          periodDevs = periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
+        } else if (genParam === 'docentes') {
+          periodDevs = periodDevs.filter((d) => d.is_admin || d.rol === 'docente');
+        } else {
+          periodDevs = periodDevs.filter((d) => d.generacion === genParam);
+        }
       }
 
-      // 6. Aggregate metrics for active devs in current filter
-      periodDevs.forEach((std) => {
+      // 6. Aggregate metrics strictly for students to avoid distorting class statistics
+      const studentDevs = periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
+      studentDevs.forEach((std) => {
         if (std.has_activity) {
           activeDevsCount++;
           totalSemesterCommits += std.commits;
@@ -876,8 +900,13 @@ app.get('/periodos', async (c) => {
     }
   }
 
-  const participationRate = periodDevs.length > 0
-    ? Math.round((activeDevsCount / periodDevs.length) * 100)
+  const studentDevsList = periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
+  const teacherDevsList = periodDevs.filter((d) => d.is_admin || d.rol === 'docente');
+  const totalStudentsCount = studentDevsList.length;
+  const totalTeachersCount = teacherDevsList.length;
+
+  const participationRate = totalStudentsCount > 0
+    ? Math.round((activeDevsCount / totalStudentsCount) * 100)
     : 0;
 
   const avgContributionsPerActive = activeDevsCount > 0
@@ -1036,7 +1065,9 @@ app.get('/periodos', async (c) => {
               </span>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-2xl font-black text-white">{activeDevsCount}</span>
-                <span className="text-xs text-slate-500">de {periodDevs.length} registrados</span>
+                <span className="text-xs text-slate-500">
+                  de {totalStudentsCount} {totalTeachersCount > 0 ? `(+${totalTeachersCount} docente${totalTeachersCount === 1 ? '' : 's'})` : 'registrados'}
+                </span>
               </div>
               <span className="text-[11px] text-emerald-400 font-mono mt-1 block">
                 {participationRate}% de participación del grupo
@@ -2017,6 +2048,26 @@ app.get('/auth/sync-profile', async (c) => {
   return c.redirect('/');
 });
 
+// Helper to format official full name (Title Case, handling lowercased inputs and Spanish particles)
+export function formatOfficialName(raw: string): string {
+  const trimmed = raw.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return '';
+  if (trimmed === trimmed.toLowerCase()) {
+    const particles = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e', 'san']);
+    return trimmed
+      .split(' ')
+      .map((word, index) => {
+        const lower = word.toLowerCase();
+        if (index > 0 && particles.has(lower)) {
+          return lower;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
+  }
+  return trimmed;
+}
+
 // Helper to get authenticated dev from cookie
 async function getAuthDev(c: any) {
   if (!supabase) return null;
@@ -2027,6 +2078,13 @@ async function getAuthDev(c: any) {
     const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
     if (user && !userError) {
       const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
+      if (dev) {
+        if (dev.github_username?.toLowerCase() === 'hesiquiozarate') {
+          dev.is_admin = true;
+          dev.metadata = dev.metadata || {};
+          if (!dev.metadata.rol) dev.metadata.rol = 'docente';
+        }
+      }
       return dev || null;
     }
   } catch (e) {}
@@ -2141,7 +2199,7 @@ app.get('/mi-perfil', async (c) => {
   );
 });
 
-// POST /mi-perfil: Handle saving student profile data
+// POST /mi-perfil: Handle saving student or teacher profile data
 app.post('/mi-perfil', async (c) => {
   const currentDev = await getAuthDev(c);
   if (!currentDev) {
@@ -2149,21 +2207,48 @@ app.post('/mi-perfil', async (c) => {
   }
 
   const body = await c.req.parseBody();
-  const nombre = (body.nombre as string || '').trim();
-  const generacion = (body.generacion as string || '').trim();
-  const numero_control = (body.numero_control as string || '').trim();
-  const carreraRaw = (body.carrera as string || 'ISC').trim().toUpperCase();
-  const carrera = carreraRaw === 'IIAR' ? 'IIAR' : 'ISC';
+  const rawNombre = (body.nombre as string || '').trim();
+  const nombre = formatOfficialName(rawNombre);
+  const rolInput = (body.rol as string || '').trim().toLowerCase();
+  const isDocente = Boolean(
+    currentDev.is_admin ||
+    currentDev.metadata?.rol === 'docente' ||
+    rolInput === 'docente'
+  );
 
   if (supabase) {
     try {
       const currentMetadata = currentDev.metadata || {};
-      const updatedMetadata = {
-        ...currentMetadata,
-        generacion,
-        numero_control,
-        carrera,
-      };
+      let updatedMetadata: any = {};
+
+      if (isDocente) {
+        const departamento = (body.departamento as string || currentMetadata.departamento || 'Departamento de Sistemas y Computación').trim();
+        const cargo = (body.cargo as string || currentMetadata.cargo || 'Profesor de Asignatura').trim();
+        const carrera = (body.carrera as string || currentMetadata.carrera || 'ISC').trim();
+        const clave_docente = (body.clave_docente as string || '').trim();
+
+        updatedMetadata = {
+          ...currentMetadata,
+          rol: 'docente',
+          departamento,
+          cargo,
+          carrera,
+          clave_docente,
+        };
+      } else {
+        const generacion = (body.generacion as string || '').trim();
+        const numero_control = (body.numero_control as string || '').trim();
+        const carreraRaw = (body.carrera as string || 'ISC').trim().toUpperCase();
+        const carrera = carreraRaw === 'IIAR' ? 'IIAR' : 'ISC';
+
+        updatedMetadata = {
+          ...currentMetadata,
+          rol: 'estudiante',
+          generacion,
+          numero_control,
+          carrera,
+        };
+      }
 
       await supabase
         .from('devs')
@@ -2173,7 +2258,7 @@ app.post('/mi-perfil', async (c) => {
         })
         .eq('id', currentDev.id);
     } catch (e) {
-      console.error('Failed to update student profile:', e);
+      console.error('Failed to update student/teacher profile:', e);
       return c.text('Error saving profile changes', 500);
     }
   }
@@ -2189,7 +2274,9 @@ app.post('/admin/add-dev', async (c) => {
 
   const body = await c.req.parseBody();
   const github_username = (body.github_username as string || '').trim();
-  const nombre = (body.nombre as string || github_username).trim();
+  const rawNombre = (body.nombre as string || github_username).trim();
+  const nombre = formatOfficialName(rawNombre);
+  const rol = (body.rol as string || 'estudiante').trim().toLowerCase();
   const generacion = (body.generacion as string || '').trim();
   const numero_control = (body.numero_control as string || '').trim();
   const carreraRaw = (body.carrera as string || 'ISC').trim().toUpperCase();
@@ -2201,9 +2288,14 @@ app.post('/admin/add-dev', async (c) => {
 
   if (supabase) {
     try {
-      const metadata: any = { carrera };
-      if (generacion) metadata.generacion = generacion;
-      if (numero_control) metadata.numero_control = numero_control;
+      const metadata: any = { rol, carrera };
+      if (rol === 'docente') {
+        metadata.departamento = 'Departamento de Sistemas y Computación';
+        metadata.cargo = 'Profesor de Asignatura';
+      } else {
+        if (generacion) metadata.generacion = generacion;
+        if (numero_control) metadata.numero_control = numero_control;
+      }
 
       const { data: newDev, error } = await supabase
         .from('devs')
