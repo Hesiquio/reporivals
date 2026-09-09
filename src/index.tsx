@@ -8,6 +8,7 @@ import { DevHeatmap } from './components/DevHeatmap';
 import { PeriodLeaderboard, PeriodDevStats } from './components/PeriodLeaderboard';
 import { PeriodHeatmap } from './components/PeriodHeatmap';
 import { getPeriodById, getAvailablePeriods, getCurrentPeriod, AcademicPeriod } from './utils/periods';
+import { StudentProfile } from './components/StudentProfile';
 import 'hono/jsx/jsx-runtime';
 
 const app = new Hono();
@@ -310,17 +311,29 @@ app.get('/', async (c) => {
     }
   }
 
-  // Sort parameter
+  // Sort and filter parameters
   const sort = c.req.query('sort') || 'contributions'; // default to contributions like github
+  const genParam = c.req.query('gen') || '';
 
   // Load real devs list for Leaderboard
   let leaderboardDevs: LeaderboardDev[] = [];
+  let availableGens: string[] = [];
   let devsData: any[] | null = null;
   if (supabase) {
     try {
       const orderColumn = sort === 'score' ? 'total_score' : 'total_contributions';
       const result = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
       devsData = result.data;
+
+      // Extract unique generations from student metadata
+      availableGens = Array.from(
+        new Set(
+          (devsData || [])
+            .map((d: any) => d.metadata?.generacion)
+            .filter((g: any) => typeof g === 'string' && g.trim() !== '')
+        )
+      ).sort().reverse();
+
       const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
       
       const badgesByDev: Record<string, any[]> = {};
@@ -351,7 +364,14 @@ app.get('/', async (c) => {
         public_repos: dev.public_repos || dev.metadata?.public_repos || 0,
         current_streak: dev.current_streak || dev.metadata?.current_streak || 0,
         badges: badgesByDev[dev.id] || [],
+        generacion: dev.metadata?.generacion || undefined,
+        numero_control: dev.metadata?.numero_control || undefined,
       }));
+
+      // Filter by generation if specified
+      if (genParam) {
+        leaderboardDevs = leaderboardDevs.filter((d: any) => d.generacion === genParam);
+      }
     } catch (e) {
       console.error("Failed to load leaderboard data:", e);
     }
@@ -459,8 +479,16 @@ app.get('/', async (c) => {
             avatar_url: dev.avatar_url,
             total_score: dev.total_score,
             total_contributions: dev.total_contributions || 0,
+            public_repos: dev.public_repos || dev.metadata?.public_repos || 0,
+            current_streak: dev.current_streak || dev.metadata?.current_streak || 0,
             badges: badgesByDev[dev.id] || [],
+            generacion: dev.metadata?.generacion || undefined,
+            numero_control: dev.metadata?.numero_control || undefined,
           }));
+
+          if (genParam) {
+            leaderboardDevs = leaderboardDevs.filter((d: any) => d.generacion === genParam);
+          }
         } catch(err){}
       }
 
@@ -526,6 +554,9 @@ app.get('/', async (c) => {
                   <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
                   <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
+                <a href="/mi-perfil" className="text-xs bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5" title="Editar mis datos de estudiante">
+                  <span>⚙️</span> Mi Perfil
+                </a>
                 <a href="/auth/sync-profile" className="text-xs bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-900/30 hover:border-emerald-800/35 text-emerald-400 px-2 py-1 rounded-lg transition-colors font-medium flex items-center gap-1" title="Sincronizar aportaciones de GitHub">
                   <span>🔄</span> Sincronizar
                 </a>
@@ -649,16 +680,24 @@ app.get('/', async (c) => {
           {currentDev?.is_admin && (
             <section className="bg-slate-900/35 border border-slate-850 p-6 rounded-2xl space-y-4">
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
-                <span>⚙️</span> Panel de Administración - Pre-registrar Dev
+                <span>⚙️</span> Panel de Administración - Pre-registrar Estudiante
               </h3>
-              <form method="POST" action="/admin/add-dev" className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="flex-1 w-full">
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub</label>
-                  <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                <div className="w-full">
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub *</label>
+                  <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
                 </div>
-                <div className="w-full sm:w-auto">
+                <div className="w-full">
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Nombre Completo</label>
+                  <input type="text" name="nombre" placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div className="w-full">
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Generación (Año)</label>
+                  <input type="text" name="generacion" placeholder="Ej. 2023" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
+                </div>
+                <div className="w-full">
                   <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-6 rounded-xl transition-all shadow-md shadow-emerald-500/10">
-                    Registrar en Ranking
+                    Pre-registrar Alumno
                   </button>
                 </div>
               </form>
@@ -667,7 +706,14 @@ app.get('/', async (c) => {
 
           {/* Real Live Leaderboard */}
           <section className="space-y-4">
-            <Leaderboard devs={leaderboardDevs} currentDevId={currentDev?.id} isAdmin={currentDev?.is_admin || false} activeSort={sort} />
+            <Leaderboard
+              devs={leaderboardDevs}
+              currentDevId={currentDev?.id}
+              isAdmin={currentDev?.is_admin || false}
+              activeSort={sort}
+              activeGen={genParam}
+              availableGens={availableGens}
+            />
           </section>
         </main>
 
@@ -704,9 +750,11 @@ app.get('/periodos', async (c) => {
   const activePeriod = getPeriodById(periodParam);
   const availablePeriods = getAvailablePeriods();
   const sort = c.req.query('sort') || 'contributions';
+  const genParam = c.req.query('gen') || '';
 
   // Load and aggregate devs for the selected period
   let periodDevs: PeriodDevStats[] = [];
+  let availableGens: string[] = [];
   let totalSemesterCommits = 0;
   let totalSemesterPRs = 0;
   let totalSemesterIssues = 0;
@@ -718,7 +766,16 @@ app.get('/periodos', async (c) => {
       // 1. Fetch all registered devs
       const { data: devsData } = await supabase
         .from('devs')
-        .select('id, nombre, github_username, avatar_url');
+        .select('id, nombre, github_username, avatar_url, metadata');
+
+      // Extract unique generations from student metadata
+      availableGens = Array.from(
+        new Set(
+          (devsData || [])
+            .map((d: any) => d.metadata?.generacion)
+            .filter((g: any) => typeof g === 'string' && g.trim() !== '')
+        )
+      ).sort().reverse();
 
       // 2. Fetch stats for the specific period range [startDate, endDate]
       const { data: statsData } = await supabase
@@ -757,14 +814,6 @@ app.get('/periodos', async (c) => {
         const score = agg.commits * POINTS_PER_COMMIT + agg.pull_requests * POINTS_PER_PR + agg.issues * POINTS_PER_ISSUE;
         const hasActivity = contributions > 0;
 
-        if (hasActivity) {
-          activeDevsCount++;
-          totalSemesterCommits += agg.commits;
-          totalSemesterPRs += agg.pull_requests;
-          totalSemesterIssues += agg.issues;
-          totalSemesterContributions += contributions;
-        }
-
         return {
           id: dev.id,
           nombre: dev.nombre,
@@ -778,10 +827,28 @@ app.get('/periodos', async (c) => {
           period_score: score,
           active_days: agg.active_days,
           has_activity: hasActivity,
+          generacion: dev.metadata?.generacion || undefined,
+          numero_control: dev.metadata?.numero_control || undefined,
         };
       });
 
-      // 5. Sort developers based on active parameter
+      // 5. Filter by generation if requested
+      if (genParam) {
+        periodDevs = periodDevs.filter((d) => d.generacion === genParam);
+      }
+
+      // 6. Aggregate metrics for active devs in current filter
+      periodDevs.forEach((std) => {
+        if (std.has_activity) {
+          activeDevsCount++;
+          totalSemesterCommits += std.commits;
+          totalSemesterPRs += std.pull_requests;
+          totalSemesterIssues += std.issues;
+          totalSemesterContributions += std.total_contributions;
+        }
+      });
+
+      // 7. Sort developers based on active parameter
       periodDevs.sort((a, b) => {
         // Students with activity come first
         if (a.has_activity && !b.has_activity) return -1;
@@ -861,6 +928,9 @@ app.get('/periodos', async (c) => {
                   <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
                   <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
+                <a href="/mi-perfil" className="text-xs bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5" title="Editar mis datos de estudiante">
+                  <span>⚙️</span> Mi Perfil
+                </a>
                 <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
                   Salir
                 </a>
@@ -906,7 +976,7 @@ app.get('/periodos', async (c) => {
               <select
                 id="periodSelectorSelect"
                 className="w-full text-xs font-semibold bg-slate-900 border border-slate-750 text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500"
-                onchange="window.location.href = '/periodos?period=' + this.value + '&sort=' + (new URLSearchParams(window.location.search).get('sort') || 'contributions');"
+                onchange="const params = new URLSearchParams(window.location.search); params.set('period', this.value); window.location.search = params.toString();"
               >
                 {availablePeriods.map((p) => (
                   <option value={p.id} selected={p.id === activePeriod.id}>
@@ -927,7 +997,7 @@ app.get('/periodos', async (c) => {
               const isSelected = p.id === activePeriod.id;
               return (
                 <a
-                  href={`/periodos?period=${p.id}&sort=${sort}`}
+                  href={`/periodos?period=${p.id}&sort=${sort}${genParam ? `&gen=${genParam}` : ''}`}
                   className={`text-xs px-3.5 py-1.5 rounded-xl border font-bold transition-all flex items-center gap-1.5 ${
                     isSelected
                       ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
@@ -1016,6 +1086,8 @@ app.get('/periodos', async (c) => {
               currentDevId={currentDev?.id}
               isAdmin={currentDev?.is_admin || false}
               activeSort={sort}
+              activeGen={genParam}
+              availableGens={availableGens}
             />
           </section>
         </main>
@@ -1100,6 +1172,9 @@ app.get('/sobre-nosotros', async (c) => {
                   <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
                   <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
+                <a href="/mi-perfil" className="text-xs bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5" title="Editar mis datos de estudiante">
+                  <span>⚙️</span> Mi Perfil
+                </a>
                 <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
                   Salir
                 </a>
@@ -1476,6 +1551,9 @@ app.get('/dev/:username', async (c) => {
                   <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
                   <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
                 </div>
+                <a href="/mi-perfil" className="text-xs bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5" title="Editar mis datos de estudiante">
+                  <span>⚙️</span> Mi Perfil
+                </a>
                 <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
                   Salir
                 </a>
@@ -1864,6 +1942,23 @@ app.get('/auth/callback', async (c) => {
   const accessToken = data.session.access_token;
   const refreshToken = data.session.refresh_token;
 
+  if (data.session.user) {
+    const user = data.session.user;
+    const ghUsername = user.user_metadata?.user_name || user.user_metadata?.preferred_username;
+    if (ghUsername) {
+      try {
+        const { data: existingDev } = await supabase
+          .from('devs')
+          .select('id, auth_id')
+          .ilike('github_username', ghUsername)
+          .single();
+        if (existingDev && !existingDev.auth_id) {
+          await supabase.from('devs').update({ auth_id: user.id }).eq('id', existingDev.id);
+        }
+      } catch (err) {}
+    }
+  }
+
   // Set cookies (secure only in production / non-localhost environments)
   const isSecure = !c.req.url.includes('localhost');
 
@@ -1912,8 +2007,8 @@ app.get('/auth/sync-profile', async (c) => {
   return c.redirect('/');
 });
 
-// Helper to check if requester is admin
-async function getAdminUser(c: any) {
+// Helper to get authenticated dev from cookie
+async function getAuthDev(c: any) {
   if (!supabase) return null;
   const accessToken = getCookie(c, 'sb-access-token');
   if (!accessToken) return null;
@@ -1922,13 +2017,158 @@ async function getAdminUser(c: any) {
     const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
     if (user && !userError) {
       const { data: dev } = await supabase.from('devs').select('*').eq('auth_id', user.id).single();
-      if (dev && dev.is_admin) {
-        return dev;
-      }
+      return dev || null;
     }
   } catch (e) {}
   return null;
 }
+
+// Helper to check if requester is admin
+async function getAdminUser(c: any) {
+  const dev = await getAuthDev(c);
+  if (dev && dev.is_admin) {
+    return dev;
+  }
+  return null;
+}
+
+// GET /mi-perfil: Render Student Profile Settings
+app.get('/mi-perfil', async (c) => {
+  const currentDev = await getAuthDev(c);
+  if (!currentDev) {
+    return c.redirect('/auth/login');
+  }
+
+  // Fetch badges awarded to student
+  let badges: any[] = [];
+  if (supabase) {
+    try {
+      const { data: devBadgesData } = await supabase
+        .from('dev_badges')
+        .select('badge_id, badges(id, nombre, icon_url, descripcion)')
+        .eq('dev_id', currentDev.id);
+
+      badges = (devBadgesData || []).map((row: any) => row.badges).filter(Boolean);
+    } catch (e) {
+      console.error('Failed to load dev badges for profile:', e);
+    }
+  }
+
+  const saved = c.req.query('saved') === '1';
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mi Perfil de Estudiante - Repo Rivals</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>{`
+          dialog::backdrop {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(4px);
+          }
+        `}</style>
+      </head>
+      <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        {/* Navigation Header */}
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎓</span>
+            <div>
+              <a href="/" className="hover:text-emerald-400 transition-colors">
+                <h1 className="text-lg font-black tracking-wider text-white">REPO RIVALS</h1>
+              </a>
+              <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">
+                Ingeniería en Sistemas Computacionales
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              🏆 Ranking Global
+            </a>
+            <a href="/periodos" className="text-xs text-slate-400 hover:text-emerald-400 transition-colors font-medium flex items-center gap-1">
+              <span>📅</span> Periodos Escolares
+            </a>
+            <a href="/duelo-vs" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              ⚔️ Duelo VS
+            </a>
+            <a href="/sobre-nosotros" className="text-xs text-slate-400 hover:text-white transition-colors font-medium">
+              Sobre Nosotros
+            </a>
+            <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-800/80 pl-2 pr-3 py-1.5 rounded-xl">
+              {currentDev.avatar_url ? (
+                <img src={currentDev.avatar_url} className="w-8 h-8 rounded-full border border-slate-700" alt={currentDev.nombre} />
+              ) : (
+                <div className="w-8 h-8 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center font-bold text-xs text-white">
+                  {currentDev.nombre.charAt(0)}
+                </div>
+              )}
+              <div className="text-left hidden sm:block">
+                <p className="text-xs font-semibold text-white leading-tight">{currentDev.nombre}</p>
+                <p className="text-[10px] text-emerald-400 font-mono">@{currentDev.github_username}</p>
+              </div>
+              <a href="/mi-perfil" className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition-colors font-bold flex items-center gap-1.5">
+                <span>⚙️</span> Mi Perfil
+              </a>
+              <a href="/auth/logout" className="text-xs bg-red-950/30 hover:bg-red-900/40 border border-red-900/30 hover:border-red-800/50 text-red-400 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                Salir
+              </a>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+          <StudentProfile dev={currentDev} saved={saved} badges={badges} />
+        </main>
+
+        <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-650">
+          <p>© 2026 Repo Rivals. Hecho con ❤️ para Ingeniería en Sistemas con Hono & Bun.</p>
+        </footer>
+      </body>
+    </html>
+  );
+});
+
+// POST /mi-perfil: Handle saving student profile data
+app.post('/mi-perfil', async (c) => {
+  const currentDev = await getAuthDev(c);
+  if (!currentDev) {
+    return c.redirect('/auth/login');
+  }
+
+  const body = await c.req.parseBody();
+  const nombre = (body.nombre as string || '').trim();
+  const generacion = (body.generacion as string || '').trim();
+  const numero_control = (body.numero_control as string || '').trim();
+  const carrera = (body.carrera as string || '').trim();
+
+  if (supabase) {
+    try {
+      const currentMetadata = currentDev.metadata || {};
+      const updatedMetadata = {
+        ...currentMetadata,
+        generacion,
+        numero_control,
+        carrera: carrera || 'Ingeniería en Sistemas Computacionales',
+      };
+
+      await supabase
+        .from('devs')
+        .update({
+          nombre: nombre || currentDev.nombre,
+          metadata: updatedMetadata,
+        })
+        .eq('id', currentDev.id);
+    } catch (e) {
+      console.error('Failed to update student profile:', e);
+      return c.text('Error saving profile changes', 500);
+    }
+  }
+
+  return c.redirect('/mi-perfil?saved=1');
+});
 
 app.post('/admin/add-dev', async (c) => {
   const admin = await getAdminUser(c);
@@ -1938,6 +2178,9 @@ app.post('/admin/add-dev', async (c) => {
 
   const body = await c.req.parseBody();
   const github_username = (body.github_username as string || '').trim();
+  const nombre = (body.nombre as string || github_username).trim();
+  const generacion = (body.generacion as string || '').trim();
+  const numero_control = (body.numero_control as string || '').trim();
 
   if (!github_username) {
     return c.text('Missing required fields', 400);
@@ -1945,9 +2188,17 @@ app.post('/admin/add-dev', async (c) => {
 
   if (supabase) {
     try {
+      const metadata: any = {};
+      if (generacion) metadata.generacion = generacion;
+      if (numero_control) metadata.numero_control = numero_control;
+
       const { data: newDev, error } = await supabase
         .from('devs')
-        .insert({ nombre: github_username, github_username })
+        .insert({
+          nombre,
+          github_username,
+          metadata,
+        })
         .select()
         .single();
       

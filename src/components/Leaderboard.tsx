@@ -9,6 +9,8 @@ export interface LeaderboardDev {
   total_contributions: number;
   public_repos?: number;
   current_streak?: number;
+  generacion?: string;
+  numero_control?: string;
   badges?: Array<{
     id: string;
     nombre: string;
@@ -21,9 +23,18 @@ interface LeaderboardProps {
   currentDevId?: string;
   isAdmin?: boolean;
   activeSort?: string;
+  activeGen?: string;
+  availableGens?: string[];
 }
 
-export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin, activeSort = 'contributions' }) => {
+export const Leaderboard: FC<LeaderboardProps> = ({
+  devs,
+  currentDevId,
+  isAdmin,
+  activeSort = 'contributions',
+  activeGen,
+  availableGens = [],
+}) => {
   return (
     <div className="bg-slate-900/50 backdrop-blur-md border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
       <div className="px-6 py-5 border-b border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -35,37 +46,57 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
         </div>
 
         {/* View toggles (Contribuciones vs Puntos vs Concentrado) */}
-        <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850 self-start sm:self-auto">
-          <a
-            href="?sort=contributions"
-            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSort === 'contributions'
-                ? 'bg-slate-900 text-white shadow-sm border border-slate-800'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            🔥 Contribuciones
-          </a>
-          <a
-            href="?sort=score"
-            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSort === 'score'
-                ? 'bg-slate-900 text-emerald-400 shadow-sm border border-slate-800'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            💎 Puntos
-          </a>
-          <a
-            href="?sort=all"
-            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSort === 'all'
-                ? 'bg-slate-900 text-amber-400 shadow-sm border border-slate-800'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            📊 Concentrado
-          </a>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Generation Filter Dropdown */}
+          {availableGens && availableGens.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
+              <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Gen:</span>
+              <select
+                className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
+              >
+                <option value="">Todas las Generaciones</option>
+                {availableGens.map((g) => (
+                  <option value={g} selected={activeGen === g}>
+                    Gen {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
+            <a
+              href={`?sort=contributions${activeGen ? `&gen=${activeGen}` : ''}`}
+              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+                activeSort === 'contributions'
+                  ? 'bg-slate-900 text-white shadow-sm border border-slate-800'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🔥 Contribuciones
+            </a>
+            <a
+              href={`?sort=score${activeGen ? `&gen=${activeGen}` : ''}`}
+              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+                activeSort === 'score'
+                  ? 'bg-slate-900 text-emerald-400 shadow-sm border border-slate-800'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              💎 Puntos
+            </a>
+            <a
+              href={`?sort=all${activeGen ? `&gen=${activeGen}` : ''}`}
+              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+                activeSort === 'all'
+                  ? 'bg-slate-900 text-amber-400 shadow-sm border border-slate-800'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              📊 Concentrado
+            </a>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -75,7 +106,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
             </a>
           )}
           <span className="text-xs font-mono text-slate-500 bg-slate-950/40 border border-slate-850 px-2 py-1 rounded-md">
-            {devs.length} Registrados
+            {devs.length} {activeGen ? `(Gen ${activeGen})` : 'Registrados'}
           </span>
         </div>
       </div>
@@ -156,6 +187,11 @@ export const Leaderboard: FC<LeaderboardProps> = ({ devs, currentDevId, isAdmin,
                             {isCurrent && (
                               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 uppercase">
                                 Tú
+                              </span>
+                            )}
+                            {std.generacion && (
+                              <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
+                                🎓 Gen {std.generacion}
                               </span>
                             )}
                           </div>

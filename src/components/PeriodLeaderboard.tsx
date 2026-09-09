@@ -14,6 +14,8 @@ export interface PeriodDevStats {
   period_score: number;
   active_days: number;
   has_activity: boolean;
+  generacion?: string;
+  numero_control?: string;
 }
 
 interface PeriodLeaderboardProps {
@@ -22,6 +24,8 @@ interface PeriodLeaderboardProps {
   currentDevId?: string;
   isAdmin?: boolean;
   activeSort?: string;
+  activeGen?: string;
+  availableGens?: string[];
 }
 
 export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
@@ -30,6 +34,8 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
   currentDevId,
   isAdmin,
   activeSort = 'contributions',
+  activeGen,
+  availableGens = [],
 }) => {
   const activeDevsCount = devs.filter((d) => d.has_activity).length;
 
@@ -57,9 +63,27 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
 
         {/* View toggles & Teacher Action */}
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+          {/* Generation Filter */}
+          {availableGens && availableGens.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
+              <span className="text-[10px] uppercase font-bold text-slate-400 pl-2">Gen:</span>
+              <select
+                className="text-xs bg-slate-900 border border-slate-750 text-white rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                onchange="const params = new URLSearchParams(window.location.search); if (this.value) { params.set('gen', this.value); } else { params.delete('gen'); } window.location.search = params.toString();"
+              >
+                <option value="">Todas las Generaciones</option>
+                {availableGens.map((g) => (
+                  <option value={g} selected={activeGen === g}>
+                    Gen {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-850">
             <a
-              href={`?period=${period.id}&sort=contributions`}
+              href={`?period=${period.id}&sort=contributions${activeGen ? `&gen=${activeGen}` : ''}`}
               className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
                 activeSort === 'contributions'
                   ? 'bg-slate-900 text-white shadow-sm border border-slate-800'
@@ -69,7 +93,7 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
               🔥 Contribuciones
             </a>
             <a
-              href={`?period=${period.id}&sort=score`}
+              href={`?period=${period.id}&sort=score${activeGen ? `&gen=${activeGen}` : ''}`}
               className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
                 activeSort === 'score'
                   ? 'bg-slate-900 text-emerald-400 shadow-sm border border-slate-800'
@@ -79,7 +103,7 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
               💎 Puntos
             </a>
             <a
-              href={`?period=${period.id}&sort=commits`}
+              href={`?period=${period.id}&sort=commits${activeGen ? `&gen=${activeGen}` : ''}`}
               className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
                 activeSort === 'commits'
                   ? 'bg-slate-900 text-cyan-400 shadow-sm border border-slate-800'
@@ -179,6 +203,11 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                                 Tú
                               </span>
                             )}
+                            {std.generacion && (
+                              <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
+                                🎓 Gen {std.generacion}
+                              </span>
+                            )}
                           </div>
                           <a
                             href={`https://github.com/${std.github_username}`}
@@ -265,12 +294,14 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
           __html: `
             document.getElementById('exportCsvBtn')?.addEventListener('click', function() {
               const rows = [
-                ['Puesto', 'Nombre', 'Usuario GitHub', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
+                ['Puesto', 'Nombre', 'Usuario GitHub', 'Generación', 'No. Control', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
                 ${JSON.stringify(
                   devs.map((d, i) => [
                     d.has_activity ? i + 1 : 'N/A',
                     d.nombre,
                     d.github_username,
+                    d.generacion || 'N/A',
+                    d.numero_control || 'N/A',
                     d.has_activity ? 'Activo' : 'Sin actividad',
                     d.active_days,
                     d.commits,
