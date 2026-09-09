@@ -2320,6 +2320,63 @@ app.post('/admin/add-dev', async (c) => {
   return c.redirect('/');
 });
 
+app.get('/admin/toggle-role/:id', async (c) => {
+  const admin = await getAdminUser(c);
+  if (!admin) {
+    return c.text('Unauthorized: Access denied', 403);
+  }
+
+  const id = c.req.param('id');
+  const roleParam = c.req.query('role'); // 'docente' | 'estudiante'
+
+  if (supabase && id) {
+    try {
+      const { data: targetDev } = await supabase.from('devs').select('*').eq('id', id).single();
+      if (targetDev) {
+        // Prevent demoting master admin hesiquiozarate
+        if (targetDev.github_username?.toLowerCase() === 'hesiquiozarate' && roleParam === 'estudiante') {
+          return c.redirect('/');
+        }
+
+        const currentMeta = targetDev.metadata || {};
+        const isCurrentlyDocente = targetDev.is_admin || currentMeta.rol === 'docente';
+        const newRole = roleParam || (isCurrentlyDocente ? 'estudiante' : 'docente');
+
+        const updatedMetadata: any = {
+          ...currentMeta,
+          rol: newRole,
+        };
+
+        if (newRole === 'docente') {
+          if (!updatedMetadata.departamento) {
+            updatedMetadata.departamento = 'Departamento de Sistemas y Computación';
+          }
+          if (!updatedMetadata.cargo) {
+            updatedMetadata.cargo = 'Profesor de Asignatura';
+          }
+          delete updatedMetadata.generacion;
+          delete updatedMetadata.numero_control;
+        } else {
+          if (!updatedMetadata.generacion) {
+            updatedMetadata.generacion = '2024';
+          }
+        }
+
+        await supabase
+          .from('devs')
+          .update({
+            metadata: updatedMetadata,
+          })
+          .eq('id', id);
+      }
+    } catch (err: any) {
+      return c.text('Error changing role: ' + err.message, 500);
+    }
+  }
+
+  return c.redirect('/');
+});
+
 app.get('/admin/delete-dev/:id', async (c) => {
   const admin = await getAdminUser(c);
   if (!admin) {

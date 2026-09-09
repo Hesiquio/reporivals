@@ -150,7 +150,7 @@ export const Leaderboard: FC<LeaderboardProps> = ({
                 {(activeSort === 'score' || activeSort === 'all') && (
                   <th className="py-4 px-6 text-right w-32">Puntos</th>
                 )}
-                {isAdmin && <th className="py-4 px-6 text-center w-20">Acción</th>}
+                {isAdmin && <th className="py-4 px-6 text-center w-32">Acciones Admin</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
@@ -281,22 +281,45 @@ export const Leaderboard: FC<LeaderboardProps> = ({
                     )}
                     {isAdmin && (
                       <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {std.id !== currentDevId && (
+                            std.is_admin || std.rol === 'docente' ? (
+                              <a
+                                href={`/admin/toggle-role/${std.id}?role=estudiante`}
+                                onclick={`return confirm('¿Deseas cambiar a ${std.nombre} al rol de Estudiante?')`}
+                                className="text-xs bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-800/50 text-cyan-300 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                                title="Cambiar a Rol Estudiante"
+                              >
+                                🎓
+                              </a>
+                            ) : (
+                              <a
+                                href={`/admin/toggle-role/${std.id}?role=docente`}
+                                onclick={`return confirm('¿Deseas asignar a ${std.nombre} como Docente / Catedrático?')`}
+                                className="text-xs bg-amber-950/60 hover:bg-amber-900/70 border border-amber-800/50 text-amber-300 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                                title="Asignar Rol de Docente"
+                              >
+                                👨‍🏫
+                              </a>
+                            )
+                          )}
                           <a
                             href={`/admin/sync-dev/${std.id}`}
-                            className="text-xs bg-emerald-950/45 hover:bg-emerald-900/50 border border-emerald-900/35 text-emerald-400 p-1.5 rounded transition-colors inline-block"
-                            title="Sincronizar Dev"
+                            className="text-xs bg-emerald-950/45 hover:bg-emerald-900/50 border border-emerald-900/35 text-emerald-400 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                            title="Sincronizar commits de este dev"
                           >
                             🔄
                           </a>
-                          <a
-                            href={`/admin/delete-dev/${std.id}`}
-                            onclick="return confirm('¿Seguro que deseas eliminar a este dev del ranking?')"
-                            className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded transition-colors inline-block"
-                            title="Eliminar Dev"
-                          >
-                            🗑️
-                          </a>
+                          {std.id !== currentDevId && (
+                            <a
+                              href={`/admin/delete-dev/${std.id}`}
+                              onclick="return confirm('¿Seguro que deseas eliminar a este dev del ranking?')"
+                              className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                              title="Eliminar Dev del sistema"
+                            >
+                              🗑️
+                            </a>
+                          )}
                         </div>
                       </td>
                     )}
