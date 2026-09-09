@@ -366,6 +366,7 @@ app.get('/', async (c) => {
         badges: badgesByDev[dev.id] || [],
         generacion: dev.metadata?.generacion || undefined,
         numero_control: dev.metadata?.numero_control || undefined,
+        carrera: dev.metadata?.carrera || 'ISC',
       }));
 
       // Filter by generation if specified
@@ -484,6 +485,7 @@ app.get('/', async (c) => {
             badges: badgesByDev[dev.id] || [],
             generacion: dev.metadata?.generacion || undefined,
             numero_control: dev.metadata?.numero_control || undefined,
+            carrera: dev.metadata?.carrera || 'ISC',
           }));
 
           if (genParam) {
@@ -682,7 +684,7 @@ app.get('/', async (c) => {
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
                 <span>⚙️</span> Panel de Administración - Pre-registrar Estudiante
               </h3>
-              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub *</label>
                   <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
@@ -692,11 +694,18 @@ app.get('/', async (c) => {
                   <input type="text" name="nombre" placeholder="Ej. Carlos Mendoza" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
                 </div>
                 <div className="w-full">
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Carrera *</label>
+                  <select name="carrera" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500/50 font-semibold cursor-pointer">
+                    <option value="ISC">ISC (Sistemas)</option>
+                    <option value="IIAR">IIAR (Inteligencia Artificial)</option>
+                  </select>
+                </div>
+                <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Generación (Año)</label>
                   <input type="text" name="generacion" placeholder="Ej. 2023" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
                 </div>
                 <div className="w-full">
-                  <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-6 rounded-xl transition-all shadow-md shadow-emerald-500/10">
+                  <button type="submit" className="w-full text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-4 rounded-xl transition-all shadow-md shadow-emerald-500/10">
                     Pre-registrar Alumno
                   </button>
                 </div>
@@ -829,6 +838,7 @@ app.get('/periodos', async (c) => {
           has_activity: hasActivity,
           generacion: dev.metadata?.generacion || undefined,
           numero_control: dev.metadata?.numero_control || undefined,
+          carrera: dev.metadata?.carrera || 'ISC',
         };
       });
 
@@ -2142,7 +2152,8 @@ app.post('/mi-perfil', async (c) => {
   const nombre = (body.nombre as string || '').trim();
   const generacion = (body.generacion as string || '').trim();
   const numero_control = (body.numero_control as string || '').trim();
-  const carrera = (body.carrera as string || '').trim();
+  const carreraRaw = (body.carrera as string || 'ISC').trim().toUpperCase();
+  const carrera = carreraRaw === 'IIAR' ? 'IIAR' : 'ISC';
 
   if (supabase) {
     try {
@@ -2151,7 +2162,7 @@ app.post('/mi-perfil', async (c) => {
         ...currentMetadata,
         generacion,
         numero_control,
-        carrera: carrera || 'Ingeniería en Sistemas Computacionales',
+        carrera,
       };
 
       await supabase
@@ -2181,6 +2192,8 @@ app.post('/admin/add-dev', async (c) => {
   const nombre = (body.nombre as string || github_username).trim();
   const generacion = (body.generacion as string || '').trim();
   const numero_control = (body.numero_control as string || '').trim();
+  const carreraRaw = (body.carrera as string || 'ISC').trim().toUpperCase();
+  const carrera = carreraRaw === 'IIAR' ? 'IIAR' : 'ISC';
 
   if (!github_username) {
     return c.text('Missing required fields', 400);
@@ -2188,7 +2201,7 @@ app.post('/admin/add-dev', async (c) => {
 
   if (supabase) {
     try {
-      const metadata: any = {};
+      const metadata: any = { carrera };
       if (generacion) metadata.generacion = generacion;
       if (numero_control) metadata.numero_control = numero_control;
 

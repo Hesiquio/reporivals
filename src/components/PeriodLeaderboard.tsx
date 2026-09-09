@@ -16,6 +16,7 @@ export interface PeriodDevStats {
   has_activity: boolean;
   generacion?: string;
   numero_control?: string;
+  carrera?: string;
 }
 
 interface PeriodLeaderboardProps {
@@ -208,6 +209,15 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                                 🎓 Gen {std.generacion}
                               </span>
                             )}
+                            {std.carrera && (
+                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm ${
+                                std.carrera === 'IIAR'
+                                  ? 'bg-purple-950/60 text-purple-400 border-purple-800/40'
+                                  : 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
+                              }`} title={std.carrera === 'IIAR' ? 'Ingeniería en Inteligencia Artificial' : 'Ingeniería en Sistemas Computacionales'}>
+                                {std.carrera}
+                              </span>
+                            )}
                           </div>
                           <a
                             href={`https://github.com/${std.github_username}`}
@@ -294,12 +304,13 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
           __html: `
             document.getElementById('exportCsvBtn')?.addEventListener('click', function() {
               const rows = [
-                ['Puesto', 'Nombre', 'Usuario GitHub', 'Generación', 'No. Control', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
+                ['Puesto', 'Nombre', 'Usuario GitHub', 'Carrera', 'Generación', 'No. Control', 'Estado', 'Dias Activo', 'Commits', 'PRs', 'Issues', 'Contribuciones', 'Puntos'],
                 ${JSON.stringify(
                   devs.map((d, i) => [
                     d.has_activity ? i + 1 : 'N/A',
                     d.nombre,
                     d.github_username,
+                    d.carrera || 'ISC',
                     d.generacion || 'N/A',
                     d.numero_control || 'N/A',
                     d.has_activity ? 'Activo' : 'Sin actividad',

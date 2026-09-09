@@ -11,6 +11,7 @@ export interface LeaderboardDev {
   current_streak?: number;
   generacion?: string;
   numero_control?: string;
+  carrera?: string;
   badges?: Array<{
     id: string;
     nombre: string;
@@ -192,6 +193,15 @@ export const Leaderboard: FC<LeaderboardProps> = ({
                             {std.generacion && (
                               <span className="text-[9px] bg-slate-850 text-cyan-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-750 shadow-sm" title={`Generación ${std.generacion}`}>
                                 🎓 Gen {std.generacion}
+                              </span>
+                            )}
+                            {std.carrera && (
+                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm ${
+                                std.carrera === 'IIAR'
+                                  ? 'bg-purple-950/60 text-purple-400 border-purple-800/40'
+                                  : 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
+                              }`} title={std.carrera === 'IIAR' ? 'Ingeniería en Inteligencia Artificial' : 'Ingeniería en Sistemas Computacionales'}>
+                                {std.carrera}
                               </span>
                             )}
                           </div>

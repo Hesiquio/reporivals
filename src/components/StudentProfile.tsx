@@ -40,10 +40,18 @@ const GENERATION_OPTIONS = [
   '2018',
 ];
 
+const CAREER_OPTIONS = [
+  { value: 'ISC', label: 'ISC - Ingeniería en Sistemas Computacionales' },
+  { value: 'IIAR', label: 'IIAR - Ingeniería en Inteligencia Artificial' },
+];
+
 export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badges = [] }) => {
   const currentGen = dev.metadata?.generacion || '';
   const currentNumControl = dev.metadata?.numero_control || '';
-  const currentCarrera = dev.metadata?.carrera || 'Ingeniería en Sistemas Computacionales';
+  const rawCarrera = (dev.metadata?.carrera || '').trim().toUpperCase();
+  const currentCarrera = rawCarrera.includes('IIAR') || rawCarrera.includes('ARTIFICIAL')
+    ? 'IIAR'
+    : 'ISC';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -110,6 +118,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
                   🎓 Gen {currentGen}
                 </span>
               )}
+              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                currentCarrera === 'IIAR'
+                  ? 'bg-purple-950/50 text-purple-400 border-purple-800/40'
+                  : 'bg-emerald-950/50 text-emerald-400 border-emerald-800/40'
+              }`}>
+                💻 {currentCarrera}
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs">
@@ -272,18 +287,25 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
                 </div>
               </div>
 
-              {/* Carrera */}
+              {/* Carrera Selector */}
               <div className="space-y-1.5">
                 <label className="block text-xs uppercase font-bold text-slate-300 tracking-wider">
-                  Carrera o Especialidad
+                  Carrera <span className="text-emerald-400">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   name="carrera"
                   defaultValue={currentCarrera}
-                  placeholder="Ej. Ingeniería en Sistemas Computacionales"
-                  className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
-                />
+                  className="w-full text-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer"
+                >
+                  {CAREER_OPTIONS.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500">
+                  Selecciona tu programa educativo oficial (ISC o IIAR) para evitar errores de captura en las evaluaciones docentes.
+                </p>
               </div>
 
               {/* Submit Button */}
