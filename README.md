@@ -258,11 +258,13 @@ APP_URL=http://localhost:3000
 ## 🌐 Rutas y Endpoints del Sistema
 
 ### Vistas Principales (HTML SSR)
-* `GET /` — Tablero principal con Ranking Global, estadísticas de proyectos y ecosistema de tecnologías.
-* `GET /periodos` — Panel docente con selector de ciclos escolares (Agosto-Enero / Febrero-Julio) y tabla de posiciones del semestre.
+* `GET /` — Tablero principal con Ranking Global, estadísticas de proyectos, ecosistema de tecnologías y panel de pre-registro admin.
+* `GET /periodos` — Panel docente con selector de ciclos escolares (Agosto-Enero / Febrero-Julio), métricas de alumnos y exportación a Excel.
+* `GET /mi-perfil` — Panel de perfil institucional (adapta campos automáticamente para Alumnos o Docentes, con auto-capitalización de nombres).
+* `POST /mi-perfil` — Guardado seguro de datos institucionales (carrera ISC/IIAR, generación, No. Control o adscripción docente).
 * `GET /dev/:username` — Perfil individual del desarrollador con mapa de calor anual o semestral y vitrina de insignias.
 * `GET /duelo-vs` — Comparador directo entre 2 desarrolladores seleccionados.
-* `GET /sobre-nosotros` — Demostración interactiva de insignias y mapas de calor.
+* `GET /sobre-nosotros` — Misión, identidad institucional para Sistemas e Inteligencia Artificial y vitrina demostrativa.
 
 ### Autenticación
 * `GET /auth/login` — Redirección a GitHub OAuth mediante Supabase.
@@ -271,13 +273,22 @@ APP_URL=http://localhost:3000
 * `GET /auth/sync-profile` — Sincronización manual de la cuenta del usuario autenticado.
 
 ### Panel de Administración
-* `POST /admin/add-dev` — Pre-registra un nuevo alumno por su usuario de GitHub.
-* `GET /admin/delete-dev/:id` — Elimina a un alumno del ranking.
-* `GET /admin/sync-dev/:id` — Fuerza la sincronización de un alumno específico.
-* `GET /admin/sync-all` — Sincroniza en segundo plano a todos los alumnos registrados.
+* `POST /admin/add-dev` — Pre-registra un estudiante o docente seleccionando su rol y carrera.
+* `GET /admin/toggle-role/:id` — Alterna con 1 solo clic entre el rol de Docente (`👨‍🏫`) y Estudiante (`🎓`) directamente desde el ranking.
+* `GET /admin/delete-dev/:id` — Elimina a un dev del ranking.
+* `GET /admin/sync-dev/:id` — Fuerza la sincronización de un dev específico.
+* `GET /admin/sync-all` — Sincroniza en segundo plano a todos los desarrolladores registrados.
 
 ### API
 * `POST /api/sync` — Endpoint para automatización vía Webhook o Cron Job externo para sincronizar a todos los alumnos.
+
+---
+
+## 📚 Memoria Técnica y Documento de Respaldo
+
+Para conocer a fondo todos los detalles de arquitectura, bitácora cronológica de requerimientos y la guía paso a paso para restaurar el proyecto en un nuevo equipo o sistema operativo, consulta:
+
+👉 **[`docs/CONTEXTO_PROYECTO_COMPLETO.md`](docs/CONTEXTO_PROYECTO_COMPLETO.md)**
 
 ---
 
