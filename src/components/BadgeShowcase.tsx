@@ -5,7 +5,7 @@ export interface Badge {
   nombre: string;
   descripcion: string;
   icon_url: string;
-  criterio_desbloqueo: string;
+  criterio_desbloqueo: any;
 }
 
 export interface DevBadge {
@@ -21,6 +21,54 @@ interface BadgeShowcaseProps {
   devName: string;
 }
 
+export function formatBadgeCriterion(criterioRaw: any): string {
+  if (!criterioRaw) return 'Requisito especial';
+  let c: any = criterioRaw;
+  if (typeof c === 'string') {
+    try {
+      c = JSON.parse(c);
+    } catch {
+      return c;
+    }
+  }
+  if (!c || typeof c !== 'object') return String(c);
+
+  switch (c.type) {
+    case 'first_commit':
+      return 'Registrar tu primer commit o aportación en GitHub';
+    case 'streak': {
+      const days = c.target_days || c.target || c.days || 3;
+      return `Mantener una racha de ${days} días seguidos de aportaciones`;
+    }
+    case 'commits': {
+      const min = c.target || c.min || 1;
+      return `Acumular al menos ${min} aportaciones / commits`;
+    }
+    case 'prs': {
+      const min = c.target || c.min || 1;
+      return `Abrir o participar en al menos ${min} Pull Request${min > 1 ? 's' : ''}`;
+    }
+    case 'issues': {
+      const min = c.target || c.min || 1;
+      return `Abrir o participar en al menos ${min} Issue${min > 1 ? 's' : ''}`;
+    }
+    case 'repos': {
+      const min = c.target || c.min || 1;
+      return `Tener al menos ${min} repositorios públicos en GitHub`;
+    }
+    case 'score': {
+      const min = c.target || c.min || 1;
+      return `Alcanzar ${Number(min).toLocaleString()} puntos de score total`;
+    }
+    case 'languages': {
+      const min = c.target || c.min || 1;
+      return `Utilizar activamente al menos ${min} lenguajes de programación distintos`;
+    }
+    default:
+      return typeof c === 'string' ? c : JSON.stringify(c);
+  }
+}
+
 export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
   allBadges = [],
   devBadges = [],
@@ -34,6 +82,20 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
   const earnedCount = devBadges.length;
   const totalCount = allBadges.length;
   const completionPercentage = totalCount > 0 ? Math.round((earnedCount / totalCount) * 100) : 0;
+
+  // Sort: unlocked first (by awarded date descending), then locked badges alphabetically
+  const sortedBadges = [...allBadges].sort((a, b) => {
+    const aUnlocked = unlockedBadgeMap.has(a.id);
+    const bUnlocked = unlockedBadgeMap.has(b.id);
+    if (aUnlocked && !bUnlocked) return -1;
+    if (!aUnlocked && bUnlocked) return 1;
+    if (aUnlocked && bUnlocked) {
+      const aDate = unlockedBadgeMap.get(a.id)?.otorgado_en || '';
+      const bDate = unlockedBadgeMap.get(b.id)?.otorgado_en || '';
+      return bDate.localeCompare(aDate);
+    }
+    return a.nombre.localeCompare(b.nombre);
+  });
 
   return (
     <div className="w-full text-slate-100 bg-slate-950 p-6 rounded-2xl border border-slate-900 shadow-2xl flex flex-col gap-6">
@@ -88,44 +150,28 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
 
       {/* Grid of Badges */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {allBadges.map((badge) => {
+        {sortedBadges.map((badge) => {
           const unlockRecord = unlockedBadgeMap.get(badge.id);
           const isUnlocked = !!unlockRecord;
           const statusText = isUnlocked ? 'Desbloqueado' : 'Bloqueado';
           const unlockDate = isUnlocked && unlockRecord 
             ? new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) 
             : '';
-
-          // JSON string payload to populate modal details dynamically in the client DOM
-          const detailsPayload = JSON.stringify({
-            nombre: badge.nombre,
-            descripcion: badge.descripcion,
-            icon: badge.icon_url,
-            criterio: badge.criterio_desbloqueo,
-            status: isUnlocked ? `Desbloqueado el ${new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}` : '🔒 Aún no obtenido',
-            unlocked: isUnlocked
-          });
+          const criterioTexto = formatBadgeCriterion(badge.criterio_desbloqueo);
+          const statusDetail = isUnlocked && unlockRecord
+            ? `Desbloqueado el ${new Date(unlockRecord.otorgado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`
+            : '🔒 Aún no obtenido';
 
           return (
             <div
               key={badge.id}
-              onclick={`
-                const payload = ${detailsPayload.replace(/"/g, '&quot;')};
-                document.getElementById('m-title').innerText = payload.nombre;
-                document.getElementById('m-desc').innerText = payload.descripcion;
-                document.getElementById('m-icon').innerText = payload.icon;
-                document.getElementById('m-criterio').innerText = payload.criterio;
-                document.getElementById('m-status').innerText = payload.status;
-                const mBack = document.getElementById('m-back');
-                if (payload.unlocked) {
-                  mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-gradient-to-tr from-emerald-500 to-teal-500';
-                  document.getElementById('m-status-box').className = 'text-xs text-emerald-400 mt-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-semibold';
-                } else {
-                  mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-slate-800';
-                  document.getElementById('m-status-box').className = 'text-xs text-slate-500 mt-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-900';
-                }
-                document.getElementById('badge-modal').showModal();
-              `}
+              data-badge-title={badge.nombre}
+              data-badge-desc={badge.descripcion}
+              data-badge-icon={badge.icon_url}
+              data-badge-criterio={criterioTexto}
+              data-badge-status={statusDetail}
+              data-badge-unlocked={isUnlocked ? 'true' : 'false'}
+              onclick="openBadgeModal(this)"
               className={`relative flex flex-col items-center p-4 rounded-xl border transition-all duration-300 cursor-pointer select-none group ${
                 isUnlocked
                   ? 'bg-slate-900/60 border-emerald-500/20 hover:border-emerald-400 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)]'
@@ -145,7 +191,7 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
                     isUnlocked ? 'border-emerald-500/30 text-emerald-400' : 'border-slate-800 text-slate-650 grayscale'
                   }`}
                 >
-                  {badge.icon_url.startsWith('http') || badge.icon_url.startsWith('/') ? (
+                  {badge.icon_url && (badge.icon_url.startsWith('http') || badge.icon_url.startsWith('/')) ? (
                     <img
                       src={badge.icon_url}
                       alt={badge.nombre}
@@ -200,7 +246,7 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
           {/* Icon frame in dialog */}
           <div className="relative w-24 h-24 mb-4 mt-2">
             <div id="m-back" className="absolute inset-0 rounded-full blur-xl opacity-50 bg-slate-800" />
-            <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-4xl border border-slate-800 bg-slate-950 text-slate-300">
+            <div className="relative w-24 h-24 rounded-full flex items-center justify-center text-4xl border border-slate-800 bg-slate-950 text-slate-300 overflow-hidden">
               <span id="m-icon">🏅</span>
             </div>
           </div>
@@ -208,15 +254,15 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
           <h3 id="m-title" className="text-xl font-black text-white">Título de Insignia</h3>
           <p id="m-desc" className="text-sm text-slate-300 mt-2 max-w-xs">Descripción detallada.</p>
 
-          <div className="w-full border-t border-slate-800 my-4 pt-4 flex flex-col items-center gap-2">
-            <div className="text-xs text-slate-400">
-              <span className="font-semibold text-slate-500 uppercase tracking-wide block mb-1">Criterio de Desbloqueo</span>
-              <code id="m-criterio" className="bg-slate-950 px-3 py-1 rounded text-emerald-400 font-mono text-[11px] border border-slate-950">
+          <div className="w-full border-t border-slate-800 my-4 pt-4 flex flex-col items-center gap-3">
+            <div className="w-full text-center">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Requisito de Desbloqueo</span>
+              <div id="m-criterio" className="bg-slate-950/90 px-3.5 py-2 rounded-xl text-emerald-400 text-xs border border-slate-800 font-medium inline-block max-w-sm">
                 criterio
-              </code>
+              </div>
             </div>
 
-            <div id="m-status-box" className="text-xs text-slate-500 mt-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-900">
+            <div id="m-status-box" className="text-xs text-slate-500 mt-1 bg-slate-950 px-3.5 py-1.5 rounded-full border border-slate-900 font-semibold">
               <span id="m-status">Estado</span>
             </div>
           </div>
@@ -229,6 +275,47 @@ export const BadgeShowcase: FC<BadgeShowcaseProps> = ({
           </button>
         </div>
       </dialog>
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            function openBadgeModal(el) {
+              const title = el.getAttribute('data-badge-title') || '';
+              const desc = el.getAttribute('data-badge-desc') || '';
+              const icon = el.getAttribute('data-badge-icon') || '🏅';
+              const criterio = el.getAttribute('data-badge-criterio') || '';
+              const status = el.getAttribute('data-badge-status') || '';
+              const isUnlocked = el.getAttribute('data-badge-unlocked') === 'true';
+
+              document.getElementById('m-title').innerText = title;
+              document.getElementById('m-desc').innerText = desc;
+              
+              const mIcon = document.getElementById('m-icon');
+              if (icon.startsWith('http') || icon.startsWith('/')) {
+                mIcon.innerHTML = '<img src="' + icon + '" class="w-full h-full object-cover rounded-full" />';
+              } else {
+                mIcon.innerText = icon;
+              }
+
+              document.getElementById('m-criterio').innerText = criterio;
+              document.getElementById('m-status').innerText = status;
+
+              const mBack = document.getElementById('m-back');
+              const mStatusBox = document.getElementById('m-status-box');
+
+              if (isUnlocked) {
+                mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-gradient-to-tr from-emerald-500 to-teal-500';
+                mStatusBox.className = 'text-xs text-emerald-400 mt-1 bg-emerald-500/10 px-3.5 py-1.5 rounded-full border border-emerald-500/20 font-semibold';
+              } else {
+                mBack.className = 'absolute inset-0 rounded-full blur-xl opacity-50 bg-slate-800';
+                mStatusBox.className = 'text-xs text-slate-500 mt-1 bg-slate-950 px-3.5 py-1.5 rounded-full border border-slate-900 font-semibold';
+              }
+
+              document.getElementById('badge-modal').showModal();
+            }
+          `
+        }}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import { FC } from 'hono/jsx';
 
 export interface StudentProfileProps {
   dev: {
@@ -77,7 +77,7 @@ const DOCENTE_CARGO_OPTIONS = [
   'Docente / Asesor de Proyectos',
 ];
 
-export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badges = [] }) => {
+export const StudentProfile: FC<StudentProfileProps> = ({ dev, saved, badges = [] }: StudentProfileProps) => {
   const isDocente = Boolean(dev.is_admin || dev.metadata?.rol === 'docente');
   const currentGen = dev.metadata?.generacion || '';
   const currentNumControl = dev.metadata?.numero_control || '';
@@ -267,7 +267,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ dev, saved, badg
               </p>
             </div>
 
-            <form method="POST" action="/mi-perfil" className="space-y-5">
+            <form method="post" action="/mi-perfil" className="space-y-5">
               <input type="hidden" name="rol" value={isDocente ? 'docente' : 'estudiante'} />
 
               {/* Nombre Completo Oficial with Auto-Capitalization & Formatting Actions */}

@@ -29,7 +29,10 @@ const POINTS_PER_STAR = 15;
 
 interface BadgeCriterion {
   type: string;
+  target?: number;
   target_days?: number;
+  min?: number;
+  days?: number;
   metric?: string;
 }
 
@@ -174,26 +177,74 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
           percentage: totalValids > 0 ? Math.round((val.count / totalValids) * 100) : 0
         })).sort((a, b) => b.count - a.count);
 
-        // 2. Compute Active Streak (días seguidos con aportaciones) using all calendar days
+        // 2. Compute Active Streak and Max Historical Streak using all calendar days
         let activeStreak = 0;
+        let maxHistoricalStreak = 0;
+
         if (allDays.length > 0) {
-          const sortedDays = [...allDays].sort((a: any, b: any) => b.date.localeCompare(a.date));
-          const todayStr = new Date().toISOString().split('T')[0];
-          const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-          
-          const hasTodayActivity = sortedDays.some((d: any) => d.date === todayStr && (d.contributionCount || 0) > 0);
-          const hasYesterdayActivity = sortedDays.some((d: any) => d.date === yesterdayStr && (d.contributionCount || 0) > 0);
-          
-          if (hasTodayActivity || hasYesterdayActivity) {
-            for (const day of sortedDays) {
-              if (day.date > todayStr) continue;
-              const count = day.contributionCount || 0;
-              if (count > 0) {
+          const activeDateSet = new Set<string>(
+            allDays.filter((d: any) => (d.contributionCount || 0) > 0).map((d: any) => d.date)
+          );
+
+          // Timezone America/Mexico_City (CST, UTC-6)
+          const mexicoFormatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Mexico_City',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+          const now = new Date();
+          const todayStr = mexicoFormatter.format(now);
+          const yesterdayStr = mexicoFormatter.format(new Date(now.getTime() - 86400000));
+          const tomorrowStr = mexicoFormatter.format(new Date(now.getTime() + 86400000));
+
+          // Determine starting date for active streak
+          let currentCheckDate: Date | null = null;
+          if (activeDateSet.has(tomorrowStr)) {
+            // Late-night commit recorded on tomorrow in UTC
+            currentCheckDate = new Date(tomorrowStr + 'T12:00:00Z');
+          } else if (activeDateSet.has(todayStr)) {
+            currentCheckDate = new Date(todayStr + 'T12:00:00Z');
+          } else if (activeDateSet.has(yesterdayStr)) {
+            currentCheckDate = new Date(yesterdayStr + 'T12:00:00Z');
+          }
+
+          if (currentCheckDate) {
+            while (true) {
+              const checkStr = currentCheckDate.toISOString().split('T')[0];
+              if (activeDateSet.has(checkStr)) {
                 activeStreak++;
+                currentCheckDate = new Date(currentCheckDate.getTime() - 86400000);
               } else {
-                if (day.date === todayStr) continue;
+                if (checkStr === todayStr && activeStreak === 1 && activeDateSet.has(yesterdayStr)) {
+                  currentCheckDate = new Date(currentCheckDate.getTime() - 86400000);
+                  continue;
+                }
                 break;
               }
+            }
+          }
+
+          // Calculate max historical streak across all active dates in memory
+          const activeDatesAsc = Array.from(activeDateSet).sort();
+          let tempStreak = 0;
+          let prevDateMs = 0;
+
+          for (const dateStr of activeDatesAsc) {
+            const curDateMs = new Date(dateStr + 'T00:00:00Z').getTime();
+            if (prevDateMs === 0) {
+              tempStreak = 1;
+            } else {
+              const diffDays = Math.round((curDateMs - prevDateMs) / 86400000);
+              if (diffDays === 1) {
+                tempStreak++;
+              } else {
+                tempStreak = 1;
+              }
+            }
+            prevDateMs = curDateMs;
+            if (tempStreak > maxHistoricalStreak) {
+              maxHistoricalStreak = tempStreak;
             }
           }
         }
@@ -204,7 +255,8 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
           ...currentMetadata, 
           public_repos: publicRepos,
           languages: languagesList,
-          current_streak: activeStreak
+          current_streak: activeStreak,
+          max_streak: maxHistoricalStreak
         };
         
         // Auto-fill avatar and name if not already set or updated from GitHub
@@ -233,49 +285,64 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
           // Fallback to metadata is active if columns are missing
         }
 
-        // Evaluate badges
-        const totalCommits = commits;
-        const { data: dbBadges } = await supabase.from("badges").select("id, criterio_desbloqueo");
-        for (const badge of dbBadges || []) {
-          const criterion = (badge.criterio_desbloqueo as unknown as BadgeCriterion) || {};
-          if (criterion.type === "first_commit") {
-            if (totalCommits > 0) {
-              try {
-                await supabase.from("dev_badges").insert({ dev_id: dev.id, badge_id: badge.id });
-              } catch (e) {}
+        // 3. Evaluate and award badges comprehensively
+        try {
+          const { data: existingBadges } = await supabase
+            .from("dev_badges")
+            .select("badge_id")
+            .eq("dev_id", dev.id);
+
+          const earnedBadgeIds = new Set((existingBadges || []).map((b: any) => b.badge_id));
+          const { data: dbBadges } = await supabase.from("badges").select("id, criterio_desbloqueo");
+
+          const effectiveStreak = Math.max(activeStreak, maxHistoricalStreak);
+          const activeLanguageCount = languagesList.filter((l: any) => l.name !== 'Otros').length;
+
+          const newBadgesToInsert: { dev_id: string; badge_id: string }[] = [];
+
+          for (const badge of dbBadges || []) {
+            if (earnedBadgeIds.has(badge.id)) continue;
+
+            const criterion = (badge.criterio_desbloqueo as unknown as BadgeCriterion) || {};
+            let unlocked = false;
+
+            switch (criterion.type) {
+              case "first_commit":
+                unlocked = commits > 0 || totalContributions > 0;
+                break;
+              case "commits":
+                unlocked = commits >= (criterion.target || criterion.min || 1);
+                break;
+              case "streak":
+                unlocked = effectiveStreak >= (criterion.target_days || criterion.target || criterion.days || 3);
+                break;
+              case "prs":
+                unlocked = prs >= (criterion.target || criterion.min || 1);
+                break;
+              case "issues":
+                unlocked = issues >= (criterion.target || criterion.min || 1);
+                break;
+              case "repos":
+                unlocked = publicRepos >= (criterion.target || criterion.min || 1);
+                break;
+              case "score":
+                unlocked = newScore >= (criterion.target || criterion.min || 1);
+                break;
+              case "languages":
+                unlocked = activeLanguageCount >= (criterion.target || criterion.min || 1);
+                break;
             }
-          } else if (criterion.type === "streak") {
-            const targetDays = criterion.target_days || 3;
-            const metric = criterion.metric || "commits";
 
-            const { data: history } = await supabase.from("github_stats").select("fecha, stats").eq("dev_id", dev.id).order("fecha", { ascending: true });
-            if (history) {
-              let consecutiveDays = 0;
-              let maxConsecutive = 0;
-              let lastDate: Date | null = null;
-
-              for (const row of history) {
-                const val = row.stats?.[metric] || 0;
-                if (val > 0) {
-                  const currentDate = new Date(row.fecha);
-                  if (lastDate === null) {
-                    consecutiveDays = 1;
-                  } else {
-                    const diffDays = Math.ceil(Math.abs(currentDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-                    if (diffDays === 1) consecutiveDays++;
-                    else if (diffDays > 1) consecutiveDays = 1;
-                  }
-                  lastDate = currentDate;
-                  if (consecutiveDays > maxConsecutive) maxConsecutive = consecutiveDays;
-                }
-              }
-              if (maxConsecutive >= targetDays) {
-                try {
-                  await supabase.from("dev_badges").insert({ dev_id: dev.id, badge_id: badge.id });
-                } catch (e) {}
-              }
+            if (unlocked) {
+              newBadgesToInsert.push({ dev_id: dev.id, badge_id: badge.id });
             }
           }
+
+          if (newBadgesToInsert.length > 0) {
+            await supabase.from("dev_badges").insert(newBadgesToInsert);
+          }
+        } catch (badgeErr) {
+          console.error(`[Badges] Error evaluating badges for ${dev.github_username}:`, badgeErr);
         }
 
         return newScore;
@@ -333,7 +400,7 @@ app.get('/', async (c) => {
         )
       ).sort().reverse();
 
-      const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
+      const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)').limit(5000);
       
       const badgesByDev: Record<string, any[]> = {};
       devBadgesData?.forEach((row: any) => {
@@ -460,7 +527,7 @@ app.get('/', async (c) => {
         try {
           const orderColumn = sort === 'score' ? 'total_score' : 'total_contributions';
           const { data: devsData } = await supabase.from('devs').select('*').order(orderColumn, { ascending: false });
-          const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)');
+          const { data: devBadgesData } = await supabase.from('dev_badges').select('dev_id, badges(id, nombre, icon_url)').limit(5000);
           
           const badgesByDev: Record<string, any[]> = {};
           devBadgesData?.forEach((row: any) => {
@@ -691,7 +758,7 @@ app.get('/', async (c) => {
               <h3 className="text-md font-bold text-white tracking-wide flex items-center gap-2">
                 <span>⚙️</span> Panel de Administración - Pre-registrar Estudiante o Docente
               </h3>
-              <form method="POST" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
+              <form method="post" action="/admin/add-dev" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
                 <div className="w-full">
                   <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Usuario de GitHub *</label>
                   <input type="text" name="github_username" required placeholder="Ej. carlosmdev" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 font-mono" />
@@ -1540,7 +1607,8 @@ app.get('/dev/:username', async (c) => {
   // Fetch all global badges
   const { data: allBadges } = await supabase
     .from('badges')
-    .select('*');
+    .select('*')
+    .order('nombre', { ascending: true });
 
   // Period filter support for teachers
   const selectedPeriodId = c.req.query('period');
@@ -1892,7 +1960,7 @@ app.get('/duelo-vs', async (c) => {
             <h2 className="text-2xl font-black text-white">⚔️ Duelo Comparativo VS</h2>
             <p className="text-slate-400 text-sm max-w-xl mx-auto">Selecciona dos desarrolladores para comparar de frente su actividad, commits históricos e insignias obtenidas.</p>
             
-            <form method="GET" action="/duelo-vs" className="flex flex-col sm:flex-row gap-4 justify-center items-end max-w-2xl mx-auto pt-2">
+            <form method="get" action="/duelo-vs" className="flex flex-col sm:flex-row gap-4 justify-center items-end max-w-2xl mx-auto pt-2">
               <div className="flex-1 w-full text-left">
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Dev A</label>
                 <select name="devA" className="w-full text-sm bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500/50">
@@ -2470,22 +2538,23 @@ app.get('/admin/sync-all', async (c) => {
   }
 
   if (supabase) {
-    // Fetch developers to sync
-    supabase.from('devs').select('*').then(({ data: devs }) => {
-      if (devs && devs.length > 0) {
-        console.log(`[SyncAll] Starting background sync for ${devs.length} devs...`);
-        // Execute syncs in parallel to optimize DB connections and speed
-        Promise.all(devs.map(dev => 
-          syncDevStats(dev)
-            .then(res => console.log(`[SyncAll] Finished syncing @${dev.github_username}: ${res} contributions`))
-            .catch(err => console.error(`[SyncAll] Error syncing @${dev.github_username}:`, err))
-        )).then(() => {
+    (async () => {
+      try {
+        const { data: devs } = await supabase.from('devs').select('*');
+        if (devs && devs.length > 0) {
+          console.log(`[SyncAll] Starting background sync for ${devs.length} devs...`);
+          // Execute syncs in parallel to optimize DB connections and speed
+          await Promise.all(devs.map(dev => 
+            syncDevStats(dev)
+              .then(res => console.log(`[SyncAll] Finished syncing @${dev.github_username}: ${res} contributions`))
+              .catch(err => console.error(`[SyncAll] Error syncing @${dev.github_username}:`, err))
+          ));
           console.log('[SyncAll] Background sync for all developers completed.');
-        });
+        }
+      } catch (err) {
+        console.error('[SyncAll] Error fetching devs for background sync:', err);
       }
-    }).catch(err => {
-      console.error('[SyncAll] Error fetching devs for background sync:', err);
-    });
+    })();
   }
 
   // Redirect immediately so the page does not freeze
