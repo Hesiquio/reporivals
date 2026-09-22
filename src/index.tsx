@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { createClient } from '@supabase/supabase-js';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { HeatmapComparator, DevWithStats } from './components/HeatmapComparator';
-import { BadgeShowcase, Badge, DevBadge } from './components/BadgeShowcase';
+import { BadgeShowcase, Badge, DevBadge, formatBadgeCriterion } from './components/BadgeShowcase';
 import { Leaderboard, LeaderboardDev } from './components/Leaderboard';
 import { DevHeatmap } from './components/DevHeatmap';
 import { PeriodLeaderboard, PeriodDevStats } from './components/PeriodLeaderboard';
@@ -1263,6 +1263,82 @@ app.get('/sobre-nosotros', async (c) => {
     } catch (e) {}
   }
 
+  // Fetch all live badges
+  let allBadges: any[] = [];
+  if (supabase) {
+    try {
+      const { data: dbBadges } = await supabase
+        .from('badges')
+        .select('*')
+        .order('nombre', { ascending: true });
+      allBadges = dbBadges || [];
+    } catch (e) {}
+  }
+
+  // Helper to parse criterion
+  const parseCriterion = (b: any) => {
+    if (!b?.criterio_desbloqueo) return {};
+    if (typeof b.criterio_desbloqueo === 'string') {
+      try { return JSON.parse(b.criterio_desbloqueo); } catch { return {}; }
+    }
+    return b.criterio_desbloqueo;
+  };
+
+  const getTargetValue = (c: any) => c.target || c.target_days || c.min || c.days || 1;
+
+  const streakBadges = allBadges
+    .filter(b => parseCriterion(b).type === 'streak')
+    .sort((a, b) => getTargetValue(parseCriterion(a)) - getTargetValue(parseCriterion(b)));
+
+  const commitBadges = allBadges
+    .filter(b => ['commits', 'first_commit'].includes(parseCriterion(b).type))
+    .sort((a, b) => {
+      const cA = parseCriterion(a);
+      const cB = parseCriterion(b);
+      if (cA.type === 'first_commit') return -1;
+      if (cB.type === 'first_commit') return 1;
+      return getTargetValue(cA) - getTargetValue(cB);
+    });
+
+  const collabBadges = allBadges
+    .filter(b => ['prs', 'issues', 'repos', 'languages'].includes(parseCriterion(b).type))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const scoreBadges = allBadges
+    .filter(b => parseCriterion(b).type === 'score')
+    .sort((a, b) => getTargetValue(parseCriterion(a)) - getTargetValue(parseCriterion(b)));
+
+  const badgeCategories = [
+    {
+      title: 'Rachas y Disciplina Diaria',
+      icon: '🔥',
+      badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      desc: 'Incentiva el hábito del commit regular. Medido con precisión en la zona horaria del Tecnológico (CDMX, UTC-6).',
+      badges: streakBadges
+    },
+    {
+      title: 'Volumen y Avance de Código',
+      icon: '💻',
+      badgeBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      desc: 'Premia la suma continua de aportaciones a lo largo del trayecto formativo del estudiante.',
+      badges: commitBadges
+    },
+    {
+      title: 'Colaboración y Portafolio Profesional',
+      icon: '🤝',
+      badgeBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+      desc: 'Fomenta el trabajo en equipo, la resolución de issues, la publicación de repositorios y el dominio políglota.',
+      badges: collabBadges
+    },
+    {
+      title: 'Ligas y Rangos de Prestigio (Score)',
+      icon: '💎',
+      badgeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      desc: 'Hitos alcanzados al acumular puntos globales dentro de Repo Rivals.',
+      badges: scoreBadges
+    }
+  ];
+
   return c.html(
     <html>
       <head>
@@ -1439,6 +1515,122 @@ app.get('/sobre-nosotros', async (c) => {
             </div>
           </section>
 
+          {/* Gamified Badges & Achievements Section */}
+          <section className="bg-slate-900/40 border border-slate-850 p-6 sm:p-8 rounded-3xl space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full text-amber-400 text-xs font-mono font-bold uppercase tracking-wider mb-2">
+                  <span>🏆</span> Logros Académicos y Gamificación
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-2">
+                  Catálogo Oficial de Insignias y Medallas
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
+                  Repo Rivals premia tu constancia, disciplina y versatilidad técnica. Actualmente existen <strong className="text-emerald-400">{allBadges.length} insignias</strong> clasificadas en 4 categorías, las cuales se evalúan y desbloquean automáticamente al sincronizar tus aportaciones en GitHub.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 sm:self-center">
+                <span className="text-xs bg-slate-950 border border-slate-800 text-slate-300 font-mono px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 shadow-inner">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  {allBadges.length} Insignias Activas
+                </span>
+              </div>
+            </div>
+
+            {/* Badges Categories Grid */}
+            <div className="space-y-10">
+              {badgeCategories.map((cat) => (
+                <div key={cat.title} className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{cat.icon}</span>
+                      <h4 className="text-lg font-bold text-white tracking-wide">{cat.title}</h4>
+                      <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${cat.badgeBg}`}>
+                        {cat.badges.length} {cat.badges.length === 1 ? 'medalla' : 'medallas'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-xl">{cat.desc}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {cat.badges.map((b: any) => {
+                      const reqText = formatBadgeCriterion(b.criterio_desbloqueo);
+                      return (
+                        <div
+                          key={b.id}
+                          className="bg-slate-950 border border-slate-850 hover:border-slate-750 p-4 rounded-2xl flex flex-col justify-between transition-all group hover:shadow-[0_0_20px_rgba(16,185,129,0.06)]"
+                        >
+                          <div>
+                            <div className="flex items-start gap-3 mb-2.5">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-2xl flex-shrink-0 group-hover:scale-105 transition-transform overflow-hidden shadow-inner">
+                                {b.icon_url && (b.icon_url.startsWith('http') || b.icon_url.startsWith('/')) ? (
+                                  <img src={b.icon_url} alt={b.nombre} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span>{b.icon_url || '🏅'}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h5 className="text-sm font-extrabold text-white group-hover:text-emerald-400 transition-colors truncate">
+                                  {b.nombre}
+                                </h5>
+                                <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+                                  {b.descripcion}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-900 mt-2">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                              Requisito de Desbloqueo
+                            </span>
+                            <div className="text-[11px] text-emerald-400 font-medium bg-slate-900/80 border border-slate-850 px-2.5 py-1.5 rounded-lg leading-tight">
+                              {reqText}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Mechanics Explanation Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-850">
+              <div className="bg-slate-950/80 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <span className="text-lg">🕒</span>
+                  <h5 className="text-xs font-bold uppercase tracking-wider">Huso Horario CDMX (UTC-6)</h5>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Las rachas se calculan en el huso oficial de México. Tienes hasta las <strong className="text-slate-200">23:59:59 hrs</strong> de tu día local para realizar al menos un commit válido y mantener viva tu racha continua.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/80 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <span className="text-lg">⚡</span>
+                  <h5 className="text-xs font-bold uppercase tracking-wider">Evaluación en Tiempo Real</h5>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Cada vez que inicias sesión, actualizas tus datos en <strong className="text-slate-200">Mi Perfil</strong> o el docente sincroniza al grupo, el motor examina tus métricas en GitHub y te otorga automáticamente las medallas ganadas.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/80 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-cyan-400">
+                  <span className="text-lg">🏆</span>
+                  <h5 className="text-xs font-bold uppercase tracking-wider">Vitrina y Portafolio</h5>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Tus insignias lucen en la tabla de clasificación, en el módulo de <strong className="text-slate-200">Duelo VS</strong> y en tu perfil público (<code className="text-emerald-400 font-mono text-[10px]">/dev/usuario</code>) con fecha de obtención para enriquecer tu CV técnico.
+                </p>
+              </div>
+            </div>
+          </section>
+
           {/* Academic Semester System */}
           <section className="bg-gradient-to-r from-slate-900/60 via-slate-900/30 to-emerald-950/20 border border-slate-850 p-8 rounded-3xl space-y-6">
             <div className="max-w-2xl space-y-2">
@@ -1520,7 +1712,16 @@ app.get('/sobre-nosotros', async (c) => {
                   <span className="text-emerald-400">❓</span> ¿Qué son las rachas activas (🔥)?
                 </h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Es el conteo de días consecutivos en los que has realizado al menos una aportación válida en GitHub. Mantener la racha activa ayuda a desbloquear insignias especiales de constancia.
+                  Es el conteo de días consecutivos en los que has realizado al menos una aportación válida en GitHub. El sistema opera con el huso horario de México (CDMX, UTC-6), permitiéndote commitear en cualquier momento hasta las 23:59:59 hrs para mantener tu racha y desbloquear medallas de disciplina.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">❓</span> ¿Cómo se desbloquean las insignias y qué representan?
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Existen 19 insignias oficiales agrupadas en 4 categorías: Rachas de disciplina, Volumen de commits, Colaboración técnica y Ligas de Score. Se desbloquean solas de forma automática en cada sincronización y quedan registradas de por vida en tu vitrina de perfil.
                 </p>
               </div>
 
