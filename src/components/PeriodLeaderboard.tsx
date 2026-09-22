@@ -134,6 +134,16 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
           >
             <span>📋</span> Copiar Concentrado (Docente)
           </button>
+
+          {isAdmin && (
+            <a
+              href="/admin/sync-all"
+              className="text-xs font-bold text-emerald-400 hover:text-emerald-350 bg-emerald-950/20 border border-emerald-900/30 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-950/10"
+              title="Sincronizar commits de todos los desarrolladores desde GitHub"
+            >
+              <span>🔄</span> Sincronizar Todo
+            </a>
+          )}
         </div>
       </div>
 
@@ -154,6 +164,9 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                 <th className="py-4 px-6 text-right w-28 hidden md:table-cell">PRs / Issues</th>
                 <th className="py-4 px-6 text-right w-36">Contribuciones</th>
                 <th className="py-4 px-6 text-right w-32">Puntos</th>
+                {isAdmin && (
+                  <th className="py-4 px-6 text-center w-28">Acciones</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
@@ -305,6 +318,50 @@ export const PeriodLeaderboard: FC<PeriodLeaderboardProps> = ({
                         {std.period_score.toLocaleString()} pts
                       </span>
                     </td>
+
+                    {/* Admin Actions */}
+                    {isAdmin && (
+                      <td className="py-4 px-6 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {std.id !== currentDevId && (
+                            isTeacher ? (
+                              <a
+                                href={`/admin/toggle-role/${std.id}?role=estudiante`}
+                                className="text-xs bg-amber-950/45 hover:bg-amber-900/50 border border-amber-900/35 text-amber-300 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                                title="Cambiar a Rol de Estudiante"
+                              >
+                                🎓
+                              </a>
+                            ) : (
+                              <a
+                                href={`/admin/toggle-role/${std.id}?role=docente`}
+                                className="text-xs bg-slate-800 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-900/40 text-slate-400 hover:text-amber-300 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                                title="Asignar Rol de Docente"
+                              >
+                                👨‍🏫
+                              </a>
+                            )
+                          )}
+                          <a
+                            href={`/admin/sync-dev/${std.id}`}
+                            className="text-xs bg-emerald-950/45 hover:bg-emerald-900/50 border border-emerald-900/35 text-emerald-400 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                            title="Sincronizar commits de este dev"
+                          >
+                            🔄
+                          </a>
+                          {std.id !== currentDevId && (
+                            <a
+                              href={`/admin/delete-dev/${std.id}`}
+                              onclick="return confirm('¿Seguro que deseas eliminar a este dev del ranking?')"
+                              className="text-xs bg-red-950/45 hover:bg-red-900/50 border border-red-900/30 text-red-400 p-1.5 rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
+                              title="Eliminar Dev del sistema"
+                            >
+                              🗑️
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               });

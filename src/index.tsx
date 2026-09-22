@@ -102,18 +102,22 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
         const calendar = collection.contributionCalendar;
 
         const weeks = calendar.weeks || [];
-        const bulkStats: any[] = [];
-        
+        const allDays: any[] = [];
         for (const week of weeks) {
           const days = week.contributionDays || [];
           for (const day of days) {
-            const dateStr = day.date;
-            const count = day.contributionCount || 0;
+            allDays.push(day);
+          }
+        }
 
-            // Collect the daily contribution count as commits in stats array
+        // Only upsert active contribution days to avoid bloating github_stats table
+        const bulkStats: any[] = [];
+        for (const day of allDays) {
+          const count = day.contributionCount || 0;
+          if (count > 0) {
             bulkStats.push({
               dev_id: dev.id,
-              fecha: dateStr,
+              fecha: day.date,
               stats: { commits: count, pull_requests: 0, issues: 0, stars_received: 0 }
             });
           }
@@ -170,30 +174,25 @@ async function syncDevStats(dev: { id: string; github_username: string }) {
           percentage: totalValids > 0 ? Math.round((val.count / totalValids) * 100) : 0
         })).sort((a, b) => b.count - a.count);
 
-        // 2. Compute Active Streak (días seguidos con aportaciones)
+        // 2. Compute Active Streak (días seguidos con aportaciones) using all calendar days
         let activeStreak = 0;
-        if (bulkStats.length > 0) {
-          // Sort stats chronologically descending (newest first)
-          const sortedStats = [...bulkStats].sort((a, b) => b.fecha.localeCompare(a.fecha));
-          
+        if (allDays.length > 0) {
+          const sortedDays = [...allDays].sort((a: any, b: any) => b.date.localeCompare(a.date));
           const todayStr = new Date().toISOString().split('T')[0];
           const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
           
-          const hasTodayActivity = sortedStats.find(s => s.fecha === todayStr && s.stats.commits > 0);
-          const hasYesterdayActivity = sortedStats.find(s => s.fecha === yesterdayStr && s.stats.commits > 0);
+          const hasTodayActivity = sortedDays.some((d: any) => d.date === todayStr && (d.contributionCount || 0) > 0);
+          const hasYesterdayActivity = sortedDays.some((d: any) => d.date === yesterdayStr && (d.contributionCount || 0) > 0);
           
           if (hasTodayActivity || hasYesterdayActivity) {
-            // Start counting backwards
-            for (const day of sortedStats) {
-              // Ignore future days if any, start counting from today/yesterday backwards
-              if (day.fecha > todayStr) continue;
-              
-              if (day.stats.commits > 0) {
+            for (const day of sortedDays) {
+              if (day.date > todayStr) continue;
+              const count = day.contributionCount || 0;
+              if (count > 0) {
                 activeStreak++;
               } else {
-                // If it's today and we haven't done commits yet, don't break the streak immediately
-                if (day.fecha === todayStr) continue;
-                break; // Streak is broken
+                if (day.date === todayStr) continue;
+                break;
               }
             }
           }
@@ -801,17 +800,42 @@ app.get('/periodos', async (c) => {
         )
       ).sort().reverse();
 
-      // 2. Fetch stats for the specific period range [startDate, endDate]
-      const { data: statsData } = await supabase
-        .from('github_stats')
-        .select('dev_id, fecha, stats')
-        .gte('fecha', activePeriod.startDate)
-        .lte('fecha', activePeriod.endDate);
+      // 2. Fetch all active stats for the specific period range [startDate, endDate] with automatic pagination
+      const statsData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data: chunk, error: pageError } = await supabase
+          .from('github_stats')
+          .select('dev_id, fecha, stats')
+          .gte('fecha', activePeriod.startDate)
+          .lte('fecha', activePeriod.endDate)
+          .or('stats->>commits.gt.0,stats->>pull_requests.gt.0,stats->>issues.gt.0')
+          .range(from, to);
+
+        if (pageError) {
+          console.error('Error fetching period stats chunk:', pageError);
+          hasMore = false;
+        } else if (!chunk || chunk.length === 0) {
+          hasMore = false;
+        } else {
+          statsData.push(...chunk);
+          if (chunk.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+      }
 
       // 3. Aggregate daily records per dev
       const statsByDev: Record<string, { commits: number; pull_requests: number; issues: number; stars_received: number; active_days: number }> = {};
 
-      (statsData || []).forEach((row: any) => {
+      statsData.forEach((row: any) => {
         const dId = row.dev_id;
         if (!statsByDev[dId]) {
           statsByDev[dId] = { commits: 0, pull_requests: 0, issues: 0, stars_received: 0, active_days: 0 };
@@ -870,15 +894,19 @@ app.get('/periodos', async (c) => {
         }
       }
 
-      // 6. Aggregate metrics strictly for students to avoid distorting class statistics
-      const studentDevs = periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
-      studentDevs.forEach((std) => {
-        if (std.has_activity) {
+      // 6. Aggregate metrics based on active filter view
+      const isViewingDocentes = genParam === 'docentes';
+      const targetEvaluationGroup = isViewingDocentes 
+        ? periodDevs.filter((d) => d.is_admin || d.rol === 'docente')
+        : periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
+
+      targetEvaluationGroup.forEach((dev) => {
+        if (dev.has_activity) {
           activeDevsCount++;
-          totalSemesterCommits += std.commits;
-          totalSemesterPRs += std.pull_requests;
-          totalSemesterIssues += std.issues;
-          totalSemesterContributions += std.total_contributions;
+          totalSemesterCommits += dev.commits;
+          totalSemesterPRs += dev.pull_requests;
+          totalSemesterIssues += dev.issues;
+          totalSemesterContributions += dev.total_contributions;
         }
       });
 
@@ -900,18 +928,24 @@ app.get('/periodos', async (c) => {
     }
   }
 
+  const isViewingDocentes = genParam === 'docentes';
   const studentDevsList = periodDevs.filter((d) => !d.is_admin && d.rol !== 'docente');
   const teacherDevsList = periodDevs.filter((d) => d.is_admin || d.rol === 'docente');
   const totalStudentsCount = studentDevsList.length;
   const totalTeachersCount = teacherDevsList.length;
 
-  const participationRate = totalStudentsCount > 0
-    ? Math.round((activeDevsCount / totalStudentsCount) * 100)
+  const evaluatedGroupTotal = isViewingDocentes ? totalTeachersCount : totalStudentsCount;
+
+  const participationRate = evaluatedGroupTotal > 0
+    ? Math.round((activeDevsCount / evaluatedGroupTotal) * 100)
     : 0;
 
   const avgContributionsPerActive = activeDevsCount > 0
     ? Math.round(totalSemesterContributions / activeDevsCount)
     : 0;
+
+  const teacherSemesterCommits = teacherDevsList.reduce((acc, t) => acc + t.commits, 0);
+  const teacherSemesterContribs = teacherDevsList.reduce((acc, t) => acc + t.total_contributions, 0);
 
   return c.html(
     <html>
@@ -1061,16 +1095,19 @@ app.get('/periodos', async (c) => {
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
               <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
-                Alumnos con Actividad
+                {isViewingDocentes ? 'Docentes con Actividad' : 'Alumnos con Actividad'}
               </span>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-2xl font-black text-white">{activeDevsCount}</span>
                 <span className="text-xs text-slate-500">
-                  de {totalStudentsCount} {totalTeachersCount > 0 ? `(+${totalTeachersCount} docente${totalTeachersCount === 1 ? '' : 's'})` : 'registrados'}
+                  {isViewingDocentes
+                    ? `de ${totalTeachersCount} registrados`
+                    : `de ${totalStudentsCount} ${totalTeachersCount > 0 ? `(+${totalTeachersCount} docente${totalTeachersCount === 1 ? '' : 's'})` : 'registrados'}`
+                  }
                 </span>
               </div>
               <span className="text-[11px] text-emerald-400 font-mono mt-1 block">
-                {participationRate}% de participación del grupo
+                {participationRate}% de participación {isViewingDocentes ? 'del claustro docente' : 'del grupo'}
               </span>
             </div>
 
@@ -1085,7 +1122,7 @@ app.get('/periodos', async (c) => {
                 <span className="text-xs text-slate-500">totales</span>
               </div>
               <span className="text-[11px] text-slate-400 font-mono mt-1 block">
-                Commits + PRs + Issues
+                Commits + PRs + Issues {!isViewingDocentes && teacherSemesterContribs > 0 ? `(+${teacherSemesterContribs} de docentes)` : ''}
               </span>
             </div>
 
@@ -1099,22 +1136,22 @@ app.get('/periodos', async (c) => {
                 </span>
               </div>
               <span className="text-[11px] text-slate-400 font-mono mt-1 block">
-                {totalSemesterPRs} Pull Requests • {totalSemesterIssues} Issues
+                {totalSemesterPRs} Pull Requests • {totalSemesterIssues} Issues {!isViewingDocentes && teacherSemesterCommits > 0 ? `(+${teacherSemesterCommits} docentes)` : ''}
               </span>
             </div>
 
             <div className="bg-slate-900/40 border border-slate-850 p-5 rounded-2xl">
               <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
-                Promedio por Alumno Activo
+                {isViewingDocentes ? 'Promedio por Docente Activo' : 'Promedio por Alumno Activo'}
               </span>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-2xl font-black text-amber-400">
                   {avgContributionsPerActive}
                 </span>
-                <span className="text-xs text-slate-500">contrib/alumno</span>
+                <span className="text-xs text-slate-500">contrib/{isViewingDocentes ? 'docente' : 'alumno'}</span>
               </div>
               <span className="text-[11px] text-slate-400 font-mono mt-1 block">
-                Métrica de regularidad docente
+                {isViewingDocentes ? 'Métrica de producción docente' : 'Métrica de regularidad estudiantil'}
               </span>
             </div>
           </section>
@@ -2257,6 +2294,13 @@ app.post('/mi-perfil', async (c) => {
           metadata: updatedMetadata,
         })
         .eq('id', currentDev.id);
+
+      // Auto-sync stats after profile update so freshest activity and streak are loaded
+      try {
+        await syncDevStats({ id: currentDev.id, github_username: currentDev.github_username });
+      } catch (syncErr) {
+        console.error('Failed auto-syncing stats after profile update:', syncErr);
+      }
     } catch (e) {
       console.error('Failed to update student/teacher profile:', e);
       return c.text('Error saving profile changes', 500);
@@ -2374,7 +2418,8 @@ app.get('/admin/toggle-role/:id', async (c) => {
     }
   }
 
-  return c.redirect('/');
+  const referer = c.req.header('referer') || '/';
+  return c.redirect(referer);
 });
 
 app.get('/admin/delete-dev/:id', async (c) => {
@@ -2392,7 +2437,8 @@ app.get('/admin/delete-dev/:id', async (c) => {
     }
   }
 
-  return c.redirect('/');
+  const referer = c.req.header('referer') || '/';
+  return c.redirect(referer);
 });
 
 app.get('/admin/sync-dev/:id', async (c) => {
@@ -2413,7 +2459,8 @@ app.get('/admin/sync-dev/:id', async (c) => {
     }
   }
 
-  return c.redirect('/');
+  const referer = c.req.header('referer') || '/';
+  return c.redirect(referer);
 });
 
 app.get('/admin/sync-all', async (c) => {
@@ -2442,7 +2489,8 @@ app.get('/admin/sync-all', async (c) => {
   }
 
   // Redirect immediately so the page does not freeze
-  return c.redirect('/');
+  const referer = c.req.header('referer') || '/';
+  return c.redirect(referer);
 });
 
 // 3. POST Route: Performs Github Stats Sync (adapted from Edge Function)
